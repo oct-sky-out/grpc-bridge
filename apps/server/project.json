@@ -3,18 +3,23 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
   "sourceRoot": "apps/server",
+  "plugins": [
+    {
+      "plugin": "@nx-go/nx-go"
+    }
+  ],
   "targets": {
     "build": {
-      "executor": "@nx-go/nx-go:build",
+      "executor": "nx:run-commands",
       "options": {
-        "outputPath": "dist/apps/server",
-        "main": "apps/server/cmd/server"
+        "command": "go build -x -o ../../dist/apps/server ./main.go",
+        "cwd": "apps/server"
       }
     },
     "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "go run ./cmd/server/main.go",
+        "command": "go run ./main.go",
         "cwd": "apps/server"
       }
     },

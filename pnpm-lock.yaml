@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@nx-go/nx-go':
+        specifier: 3.3.1
+        version: 3.3.1(nx@21.6.4)
       '@nx/js':
         specifier: ^21.6.4
         version: 21.6.4(@babel/traverse@7.28.4)(nx@21.6.4)
@@ -99,9 +102,6 @@ importers:
         specifier: ^4.5.0
         version: 4.5.7(@types/react@18.3.24)(react@18.3.1)
     devDependencies:
-      '@nx-go/nx-go':
-        specifier: ^3.3.1
-        version: 3.3.1(nx@21.6.4)
       '@tauri-apps/api':
         specifier: ^2.0.0-rc
         version: 2.8.0
