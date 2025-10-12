@@ -1,34 +1,25 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "target": "ES2022",
     "useDefineForClassFields": true,
-    "lib": [
-      "DOM",
-      "DOM.Iterable",
-      "ES2020"
-    ],
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "allowJs": false,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@grpc-bridge/shared": ["libs/shared/src/index.ts"],
+      "@grpc-bridge/shared/*": ["libs/shared/src/*"]
     },
-    "types": [
-      "@tauri-apps/api"
-    ]
+    "verbatimModuleSyntax": true
   },
-  "include": [
-    "src"
-  ],
-  "references": []
+  "exclude": ["node_modules", "dist", "target"]
 }

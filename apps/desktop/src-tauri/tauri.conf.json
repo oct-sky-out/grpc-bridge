@@ -4,9 +4,10 @@
   "version": "0.0.1",
   "identifier": "com.example.grpcbridge",
   "build": {
-    "beforeDevCommand": "pnpm build",
-    "beforeBuildCommand": "pnpm build",
-    "frontendDist": "../dist"
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "pnpm --filter @grpc-bridge/ui dev",
+    "beforeBuildCommand": "pnpm nx run ui:build",
+    "frontendDist": "../../../dist"
   },
   "app": {
     "windows": [

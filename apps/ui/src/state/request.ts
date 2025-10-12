@@ -16,6 +16,7 @@ export interface RequestState {
   method: string;
   payload: string;
   lastSentPayload?: string;
+  showDiff: boolean;         // show diff between current and last sent payload
   headers: HeaderKV[];
   authToken: string;
   autoAuth: boolean;
@@ -35,6 +36,7 @@ export interface RequestState {
   setAuthToken: (v: string) => void;
   setAutoAuth: (v: boolean) => void;
   setLastSentPayload: (v: string) => void;
+  setShowDiff: (v: boolean | ((prev: boolean) => boolean)) => void;
   addHeader: () => void;
   updateHeader: (id: string, key: 'key' | 'value', value: string) => void;
   removeHeader: (id: string) => void;
@@ -53,6 +55,7 @@ export const useRequestStore = create<RequestState>((set): RequestState => ({
   method: '',
   payload: '',
   lastSentPayload: undefined,
+  showDiff: false,
   headers: [],
   authToken: '',
   autoAuth: true,
@@ -71,6 +74,7 @@ export const useRequestStore = create<RequestState>((set): RequestState => ({
   setAuthToken: (v) => set({ authToken: v }),
   setAutoAuth: (v) => set({ autoAuth: v }),
   setLastSentPayload: (v) => set({ lastSentPayload: v }),
+  setShowDiff: (v) => set((s) => ({ showDiff: typeof v === 'function' ? v(s.showDiff) : v })),
   addHeader: () => set(s => ({ headers: [...s.headers, { id: crypto.randomUUID(), key: '', value: '' }] })),
   updateHeader: (id, keyField, value) => set(s => ({ headers: s.headers.map(h => h.id === id ? { ...h, [keyField]: value } : h) })),
   removeHeader: (id) => set(s => ({ headers: s.headers.filter(h => h.id !== id) })),

@@ -2,16 +2,19 @@
 
 A modern, cross-platform gRPC testing tool built with Tauri, React, and TypeScript. Test gRPC services with an intuitive desktop interface featuring proto file discovery, request/response handling, and beautiful UI components powered by shadcn/ui.
 
+Built with **Nx monorepo** for scalable development and optimized builds.
+
 ## ✨ Features
 
 - 🔍 **Auto Proto Discovery**: Automatically scan and parse .proto files
 - 🚀 **Unary gRPC Calls**: Test unary gRPC methods with ease
 - 💾 **Request History**: Save and reuse previous requests
 - 🎨 **Modern UI**: Beautiful interface built with Tailwind CSS + shadcn/ui
-- 🌍 **Cross Platform**: Works on macOS, Windows, and Linux
+- 🌍 **Cross Platform**: Works on macOS, Windows, and Linux (Desktop) or any browser (Web)
 - 🌐 **Multi-language Support**: English, Japanese, Korean interface
-- ⚡ **Fast Performance**: Native Rust backend with React frontend
+- ⚡ **Fast Performance**: Native Rust backend with React frontend (Desktop) or Go backend (Web)
 - 🔧 **Developer Friendly**: JSON syntax highlighting and validation
+- 🌐 **Web Version**: Browser-based gRPC testing with Go backend API
 
 ## 📦 Installation
 
@@ -102,20 +105,29 @@ pnpm install
 #### Development Build (with hot reload)
 
 ```bash
-# Start development server
-pnpm tauri dev
+# Start Tauri development server (UI + Desktop)
+pnpm dev
+
+# Or start UI development server only
+pnpm dev:ui
 ```
 
 #### Production Build
 
 ```bash
-# Build for current platform
-pnpm tauri build
+# Build all projects (UI + Desktop)
+pnpm build
+
+# Build UI only
+pnpm build:ui
+
+# Build desktop app only
+pnpm build:desktop
 
 # The built application will be available in:
-# - macOS: src-tauri/target/release/bundle/dmg/
-# - Windows: src-tauri/target/release/bundle/msi/
-# - Linux: src-tauri/target/release/bundle/deb/ or bundle/appimage/
+# - macOS: apps/desktop/src-tauri/target/release/bundle/dmg/
+# - Windows: apps/desktop/src-tauri/target/release/bundle/msi/
+# - Linux: apps/desktop/src-tauri/target/release/bundle/deb/ or bundle/appimage/
 ```
 
 #### Cross-Platform Build (macOS only)
@@ -127,7 +139,7 @@ chmod +x cross-build.sh
 # Build for multiple platforms
 ./cross-build.sh
 
-# Built binaries will be in dist/ folder:
+# Built binaries will be in dist-artifacts/ folder:
 # - grpc-bridge-macos-arm64 (Apple Silicon)
 # - grpc-bridge-macos-x64 (Intel Mac)
 # - grpc-bridge-windows-x64.exe (Windows)
@@ -140,8 +152,8 @@ chmod +x cross-build.sh
 1. **Launch the application**
 
    ```bash
-   # Development
-   pnpm tauri dev
+   # Development (Tauri + UI)
+   pnpm dev
 
    # Or run the built application
    ./grpc-bridge  # macOS/Linux
@@ -171,44 +183,75 @@ chmod +x cross-build.sh
 ### Project Structure
 
 ```
-grpc-bridge/
-├── src/                    # React frontend
-│   ├── components/         # UI components
-│   │   ├── ui/            # shadcn/ui components
-│   │   ├── UnaryRequestPanel.tsx
-│   │   ├── ProtoFileTree.tsx
-│   │   └── LanguageSwitcher.tsx
-│   ├── locales/           # i18n translation files
-│   │   ├── en.json        # English translations
-│   │   ├── ja.json        # Japanese translations
-│   │   └── ko.json        # Korean translations
-│   ├── lib/               # Utilities
-│   ├── stores/            # Zustand state management
-│   └── i18n.ts            # Internationalization setup
-├── src-tauri/             # Rust backend
-│   ├── src/
-│   │   ├── main.rs        # Tauri app entry
-│   │   ├── proto_index/   # Proto file parsing
-│   │   └── commands/      # Backend commands
-│   └── Cargo.toml
-├── dist/                  # Built frontend assets
-└── docs/                  # Documentation
+grpc-bridge/                    # Nx monorepo root
+├── apps/
+│   ├── ui/                     # React frontend application
+│   │   ├── src/
+│   │   │   ├── components/     # UI components
+│   │   │   │   ├── ui/        # shadcn/ui components
+│   │   │   │   └── grpc/      # gRPC-specific components
+│   │   │   ├── locales/       # i18n translation files
+│   │   │   │   ├── en.json    # English translations
+│   │   │   │   ├── ja.json    # Japanese translations
+│   │   │   │   └── ko.json    # Korean translations
+│   │   │   ├── state/         # Zustand state management
+│   │   │   ├── lib/           # Utilities
+│   │   │   └── i18n.ts        # Internationalization setup
+│   │   ├── vite.config.ts
+│   │   └── package.json
+│   ├── desktop/                # Tauri desktop application
+│   │   ├── src-tauri/          # Rust backend
+│   │   │   ├── src/
+│   │   │   │   ├── main.rs     # Tauri app entry
+│   │   │   │   ├── proto_index/# Proto file parsing
+│   │   │   │   └── commands/   # Backend commands
+│   │   │   └── Cargo.toml
+│   │   └── package.json
+│   └── server/                # Go backend API (Web version)
+│       ├── cmd/
+│       │   └── server/         # API server entry point
+│       ├── internal/
+│       │   ├── grpc/          # gRPC proxy (grpcurl)
+│       │   ├── handler/       # HTTP handlers
+│       │   ├── middleware/    # HTTP middleware
+│       │   ├── session/       # Session management
+│       │   └── storage/       # File storage
+│       ├── go.mod
+│       ├── project.json       # Nx configuration
+│       └── README.md
+├── libs/
+│   └── shared/                 # Shared libraries
+│       ├── src/
+│       │   ├── types.ts        # Shared TypeScript types
+│       │   └── utils.ts        # Shared utilities
+│       └── package.json
+├── dist/                       # Built frontend assets
+├── dist-artifacts/             # Cross-platform build artifacts
+├── nx.json                     # Nx workspace configuration
+├── pnpm-workspace.yaml         # pnpm workspace configuration
+└── tsconfig.base.json          # Base TypeScript configuration
 ```
 
 ### Tech Stack
+
+**Monorepo:**
+
+- **Nx** - Build system and monorepo tooling
+- **pnpm** - Fast, disk space efficient package manager
+- **pnpm workspaces** - Monorepo workspace management
 
 **Frontend:**
 
 - **React 18** - UI framework
 - **TypeScript** - Type safety
+- **Vite** - Build tool and dev server
 - **Tailwind CSS** - Styling
 - **shadcn/ui** - Component library
 - **Zustand** - State management
-- **Monaco Editor** - Code editing
 - **Radix UI** - Accessible primitives
 - **react-i18next** - Internationalization (English, Japanese, Korean)
 
-**Backend:**
+**Backend (Desktop):**
 
 - **Rust** - System programming language
 - **Tauri** - Desktop app framework
@@ -216,23 +259,75 @@ grpc-bridge/
 - **serde** - Serialization
 - **anyhow** - Error handling
 
+**Backend (Web API):**
+
+- **Go 1.23** - Backend language
+- **Gin** - HTTP web framework
+- **grpcurl** - gRPC command-line tool for proxy
+- **UUID** - Session ID generation
+
 ### Development Scripts
 
-```bash
-# Start development server with hot reload
-pnpm tauri dev
+#### Desktop App (Tauri + React)
 
-# Build frontend only
+```bash
+# Start Tauri development server (UI + Desktop)
+pnpm dev
+
+# Start UI development server only
+pnpm dev:ui
+
+# Build all projects
 pnpm build
 
-# Run linting
-pnpm lint
-
-# Build production app
-pnpm tauri build
+# Build specific projects
+pnpm build:ui         # Build UI only
+pnpm build:desktop    # Build desktop app only
 
 # Cross-platform build (macOS only)
 ./cross-build.sh
+```
+
+#### Web API (Go)
+
+```bash
+# Start web API server
+nx serve server
+
+# Build web API
+nx build server
+
+# Test web API
+nx test server
+
+# Lint web API
+nx lint server
+
+# Using Go directly
+cd apps/server
+go run ./cmd/server/main.go
+```
+
+#### General Commands
+
+```bash
+# Run linting on all projects
+pnpm lint
+
+# Run type checking on all projects
+pnpm type-check
+
+# Format code
+pnpm format
+
+# View project dependency graph
+pnpm graph
+
+# Nx commands
+pnpm nx show projects              # List all projects
+pnpm nx run ui:build               # Build specific project
+pnpm nx run-many -t build          # Run target on multiple projects
+pnpm nx graph                      # View dependency graph
 ```
 
 ## 📋 Requirements
@@ -246,9 +341,14 @@ pnpm tauri build
 
 ### Development Requirements
 
+**Desktop App:**
 - **Node.js**: v18.0.0 or later
 - **Rust**: v1.70.0 or later
 - **pnpm**: v8.0.0 or later (recommended package manager)
+
+**Web API:**
+- **Go**: v1.23.0 or later
+- **grpcurl**: Latest version (for gRPC proxy functionality)
 
 ## Commands (Rust Backend)
 

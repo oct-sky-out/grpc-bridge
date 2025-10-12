@@ -1,0 +1,28 @@
+{
+  "name": "@grpc-bridge/desktop",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/desktop/src-tauri",
+  "projectType": "application",
+  "tags": ["type:app", "platform:desktop"],
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["ui:build"],
+      "options": {
+        "command": "tauri dev",
+        "cwd": "apps/desktop"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["ui:build"],
+      "outputs": [
+        "{workspaceRoot}/apps/desktop/src-tauri/target"
+      ],
+      "options": {
+        "command": "tauri build",
+        "cwd": "apps/desktop"
+      }
+    }
+  }
+}

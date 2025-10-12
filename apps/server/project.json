@@ -1,0 +1,39 @@
+{
+  "name": "@grpc-bridge/server",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/server",
+  "targets": {
+    "build": {
+      "executor": "@nx-go/nx-go:build",
+      "options": {
+        "outputPath": "dist/apps/server",
+        "main": "apps/server/cmd/server"
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "go run ./cmd/server/main.go",
+        "cwd": "apps/server"
+      }
+    },
+    "test": {
+      "executor": "@nx-go/nx-go:test",
+      "options": {
+        "codeCoverage": true
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "go vet ./...",
+        "cwd": "apps/server"
+      }
+    }
+  },
+  "tags": [
+    "type:app",
+    "platform:go"
+  ]
+}
