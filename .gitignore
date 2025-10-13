@@ -182,9 +182,18 @@ dist-artifacts/
 apps/*/dist/
 libs/*/dist/
 
+# Desktop app bundles
+dist/desktop/app/
+
 # Workspace-specific node_modules
 apps/*/node_modules/
 libs/*/node_modules/
 
 # Tauri build artifacts
 apps/desktop/src-tauri/target/
+
+# Go server static files (embedded frontend)
+apps/server/internal/static/dist/
+
+# Go uploads directory
+apps/server/uploads/

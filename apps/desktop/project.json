@@ -7,7 +7,6 @@
   "targets": {
     "dev": {
       "executor": "nx:run-commands",
-      "dependsOn": ["ui:build"],
       "options": {
         "command": "tauri dev",
         "cwd": "apps/desktop"
@@ -15,9 +14,9 @@
     },
     "build": {
       "executor": "nx:run-commands",
-      "dependsOn": ["ui:build"],
       "outputs": [
-        "{workspaceRoot}/apps/desktop/src-tauri/target"
+        "{workspaceRoot}/dist/desktop",
+        "{workspaceRoot}/dist/desktop/app"
       ],
       "options": {
         "command": "tauri build",

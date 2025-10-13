@@ -9,7 +9,8 @@ import (
 	"github.com/grpc-bridge/server/internal/handler"
 	"github.com/grpc-bridge/server/internal/middleware"
 	"github.com/grpc-bridge/server/internal/session"
-	"github.com/grpc-bridge/server/internal/storage"
+	"github.com/grpc-bridge/server/internal/static"
+	"github.com/grpc-bridge/server/internal/websocket"
 )
 
 func main() {
@@ -19,10 +20,16 @@ func main() {
 		port = "8080"
 	}
 
+	// Initialize upload directory
+	uploadDir := "./uploads"
+	if dir := os.Getenv("UPLOAD_DIR"); dir != "" {
+		uploadDir = dir
+	}
+
 	// Initialize services
-	sessionManager := session.NewManager()
-	fileStorage := storage.NewFileStorage("./uploads")
+	sessionManager := session.NewManager(uploadDir)
 	grpcProxy := grpc.NewProxy()
+	wsHub := websocket.NewHub()
 
 	// Create Gin router
 	router := gin.Default()
@@ -37,10 +44,14 @@ func main() {
 		// Health check
 		api.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{
-				"status": "ok",
+				"status":  "ok",
 				"service": "grpc-bridge-web-api",
 			})
 		})
+
+		// WebSocket route
+		wsHandler := handler.NewWebSocketHandler(wsHub)
+		api.GET("/ws", wsHandler.HandleConnection)
 
 		// Session routes
 		sessionHandler := handler.NewSessionHandler(sessionManager)
@@ -48,16 +59,31 @@ func main() {
 		api.GET("/sessions/:sessionId", sessionHandler.GetSession)
 		api.DELETE("/sessions/:sessionId", sessionHandler.DeleteSession)
 
-		// File upload routes
-		fileHandler := handler.NewFileHandler(sessionManager, fileStorage)
-		api.POST("/upload/proto", fileHandler.UploadProtoFiles)
-		api.GET("/sessions/:sessionId/files", fileHandler.ListFiles)
+		// Proto file routes (directory structure)
+		protoHandler := handler.NewProtoHandler(sessionManager, wsHub, uploadDir)
+		api.POST("/proto/upload-structure", protoHandler.UploadStructure)
+		api.GET("/sessions/:sessionId/files", protoHandler.ListFiles)
+		api.GET("/sessions/:sessionId/file-content", protoHandler.GetFileContent)
+		api.GET("/sessions/:sessionId/analyze", protoHandler.AnalyzeDependencies)
+		api.GET("/proto/stdlib", protoHandler.ListStdlibFiles)
+		api.GET("/proto/stdlib-content", protoHandler.GetStdlibFileContent)
 
 		// gRPC proxy routes
-		grpcHandler := handler.NewGRPCHandler(sessionManager, grpcProxy)
+		grpcHandler := handler.NewGRPCHandler(sessionManager, grpcProxy, wsHub)
 		api.POST("/grpc/call", grpcHandler.CallGRPC)
 		api.POST("/grpc/services", grpcHandler.ListServices)
 		api.POST("/grpc/describe", grpcHandler.DescribeService)
+	}
+
+	// Serve static files (embedded frontend)
+	staticHandler, err := static.GetFileServer()
+	if err != nil {
+		log.Printf("[Warning] Failed to load embedded static files: %v", err)
+		log.Println("[Warning] Static file serving disabled")
+	} else {
+		// Serve index.html for SPA routes
+		router.NoRoute(gin.WrapH(staticHandler))
+		log.Println("[Static] Serving embedded frontend from /")
 	}
 
 	log.Printf("Starting gRPC Bridge Web API on port %s", port)

@@ -17,9 +17,20 @@ func NewSessionHandler(sm *session.Manager) *SessionHandler {
 	}
 }
 
+// CreateSessionRequest represents the request body for creating a session
+type CreateSessionRequest struct {
+	Name string `json:"name"` // Optional user-specified name
+}
+
 // CreateSession creates a new session
 func (h *SessionHandler) CreateSession(c *gin.Context) {
-	session := h.sessionManager.Create()
+	var req CreateSessionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		// If no body provided, create session with empty name
+		req.Name = ""
+	}
+
+	session := h.sessionManager.Create(req.Name)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"session": session,

@@ -30,15 +30,16 @@ func NewProxy() *Proxy {
 
 // CallOptions represents options for a gRPC call
 type CallOptions struct {
-	SessionID   string
-	ProtoFiles  []string
-	Target      string
-	Service     string
-	Method      string
-	Data        interface{}
-	Metadata    map[string]string
-	Plaintext   bool
-	ImportPaths []string
+	SessionID    string
+	ProtoFiles   []string // Absolute paths to proto files
+	Target       string
+	Service      string
+	Method       string
+	Data         interface{}
+	Metadata     map[string]string
+	Plaintext    bool
+	ImportPaths  []string // Additional import paths
+	SessionRoot  string   // Session root directory (used as primary import path)
 }
 
 // CallResult represents the result of a gRPC call
@@ -53,14 +54,19 @@ type CallResult struct {
 func (p *Proxy) Call(ctx context.Context, opts CallOptions) (*CallResult, error) {
 	args := []string{}
 
+	// Add session root as primary import path (MUST come first for proper resolution)
+	if opts.SessionRoot != "" {
+		args = append(args, "-import-path", opts.SessionRoot)
+	}
+
+	// Add additional import paths
+	for _, importPath := range opts.ImportPaths {
+		args = append(args, "-import-path", importPath)
+	}
+
 	// Add proto files
 	for _, protoFile := range opts.ProtoFiles {
 		args = append(args, "-proto", protoFile)
-	}
-
-	// Add import paths
-	for _, importPath := range opts.ImportPaths {
-		args = append(args, "-import-path", importPath)
 	}
 
 	// Add metadata headers
@@ -123,15 +129,21 @@ func (p *Proxy) Call(ctx context.Context, opts CallOptions) (*CallResult, error)
 
 // ListOptions represents options for listing services
 type ListOptions struct {
-	SessionID  string
-	ProtoFiles []string
-	Target     string
-	Plaintext  bool
+	SessionID   string
+	ProtoFiles  []string // Absolute paths to proto files
+	Target      string
+	Plaintext   bool
+	SessionRoot string // Session root directory (used as import path)
 }
 
 // ListServices lists available gRPC services
 func (p *Proxy) ListServices(ctx context.Context, opts ListOptions) ([]string, error) {
 	args := []string{}
+
+	// Add session root as import path
+	if opts.SessionRoot != "" {
+		args = append(args, "-import-path", opts.SessionRoot)
+	}
 
 	// Add proto files
 	for _, protoFile := range opts.ProtoFiles {
@@ -172,16 +184,22 @@ func (p *Proxy) ListServices(ctx context.Context, opts ListOptions) ([]string, e
 
 // DescribeOptions represents options for describing a service
 type DescribeOptions struct {
-	SessionID  string
-	ProtoFiles []string
-	Target     string
-	Service    string
-	Plaintext  bool
+	SessionID   string
+	ProtoFiles  []string // Absolute paths to proto files
+	Target      string
+	Service     string
+	Plaintext   bool
+	SessionRoot string // Session root directory (used as import path)
 }
 
 // DescribeService describes a gRPC service
 func (p *Proxy) DescribeService(ctx context.Context, opts DescribeOptions) (interface{}, error) {
 	args := []string{}
+
+	// Add session root as import path
+	if opts.SessionRoot != "" {
+		args = append(args, "-import-path", opts.SessionRoot)
+	}
 
 	// Add proto files
 	for _, protoFile := range opts.ProtoFiles {

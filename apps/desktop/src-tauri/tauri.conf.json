@@ -6,8 +6,8 @@
   "build": {
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "pnpm --filter @grpc-bridge/ui dev",
-    "beforeBuildCommand": "pnpm nx run ui:build",
-    "frontendDist": "../../../dist"
+    "beforeBuildCommand": "pnpm --filter @grpc-bridge/ui build:desktop",
+    "frontendDist": "../../../dist/desktop"
   },
   "app": {
     "windows": [

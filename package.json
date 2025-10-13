@@ -7,10 +7,14 @@
   "scripts": {
     "dev:desktop": "nx run desktop:dev",
     "dev:ui": "nx run ui:dev",
+    "dev:ui:web": "pnpm --filter @grpc-bridge/ui dev:web",
     "dev:server": "nx run server:dev",
-    "build": "nx run-many -t build",
+    "build": "bash scripts/build-all.sh",
+    "build:web": "bash scripts/build-web.sh",
+    "build:desktop": "bash scripts/build-desktop.sh",
     "build:ui": "nx run ui:build",
-    "build:desktop": "nx run desktop:build",
+    "build:ui:desktop": "pnpm --filter @grpc-bridge/ui build:desktop",
+    "build:ui:web": "pnpm --filter @grpc-bridge/ui build:web",
     "build:server": "nx run server:build",
     "lint": "nx run-many -t lint",
     "type-check": "nx run-many -t type-check",
@@ -18,7 +22,7 @@
     "graph": "nx graph",
     "deps:update": "pnpm update --latest -r",
     "deps:check": "pnpm audit",
-    "clean": "rm -rf dist/ apps/desktop/src-tauri/target/ node_modules/ apps/*/node_modules/ libs/*/node_modules/",
+    "clean": "rm -rf dist/ apps/desktop/src-tauri/target/ node_modules/ apps/*/node_modules/ libs/*/node_modules/ apps/server/internal/static/dist/",
     "setup": "./setup-dev.sh",
     "cross-build": "./cross-build.sh",
     "release:patch": "pnpm version patch && git push && git push --tags",
@@ -26,6 +30,7 @@
     "release:major": "pnpm version major && git push && git push --tags"
   },
   "devDependencies": {
+    "@eslint/js": "^9.37.0",
     "@nx-go/nx-go": "3.3.1",
     "@nx/js": "^21.6.4",
     "@nx/react": "^21.6.4",
@@ -34,8 +39,12 @@
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "eslint": "^9.0.0",
+    "eslint-plugin-react-hooks": "^7.0.0",
+    "eslint-plugin-react-refresh": "^0.4.23",
+    "globals": "^16.4.0",
     "nx": "^21.6.4",
     "prettier": "^3.6.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.0"
   }
 }

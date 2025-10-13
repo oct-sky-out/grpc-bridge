@@ -1,0 +1,3 @@
+[build]
+# Set custom target directory for Tauri builds
+target-dir = "../../dist/desktop/app/target"

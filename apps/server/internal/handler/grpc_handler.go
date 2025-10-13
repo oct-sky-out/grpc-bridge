@@ -2,21 +2,25 @@ package handler
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/grpc-bridge/server/internal/grpc"
 	"github.com/grpc-bridge/server/internal/session"
+	"github.com/grpc-bridge/server/internal/websocket"
 )
 
 type GRPCHandler struct {
 	sessionManager *session.Manager
 	grpcProxy      *grpc.Proxy
+	wsHub          *websocket.Hub
 }
 
-func NewGRPCHandler(sm *session.Manager, gp *grpc.Proxy) *GRPCHandler {
+func NewGRPCHandler(sm *session.Manager, gp *grpc.Proxy, hub *websocket.Hub) *GRPCHandler {
 	return &GRPCHandler{
 		sessionManager: sm,
 		grpcProxy:      gp,
+		wsHub:          hub,
 	}
 }
 
@@ -58,27 +62,53 @@ func (h *GRPCHandler) CallGRPC(c *gin.Context) {
 		return
 	}
 
-	// Execute gRPC call using grpcurl
-	result, err := h.grpcProxy.Call(c.Request.Context(), grpc.CallOptions{
-		SessionID:   sessionID,
-		ProtoFiles:  session.ProtoFiles,
-		Target:      req.Target,
-		Service:     req.Service,
-		Method:      req.Method,
-		Data:        req.Data,
-		Metadata:    req.Metadata,
-		Plaintext:   req.Plaintext,
-		ImportPaths: req.ImportPaths,
-	})
+	// Emit start event
+	startTime := time.Now()
 
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "gRPC call failed: " + err.Error(),
-		})
-		return
+	// Build proto file paths from session
+	protoFiles := make([]string, len(session.ProtoFiles))
+	for i, pf := range session.ProtoFiles {
+		protoFiles[i] = pf.AbsolutePath
 	}
 
-	c.JSON(http.StatusOK, result)
+	// Execute gRPC call using grpcurl in a goroutine
+	go func() {
+		result, err := h.grpcProxy.Call(c.Request.Context(), grpc.CallOptions{
+			SessionID:   sessionID,
+			ProtoFiles:  protoFiles,
+			Target:      req.Target,
+			Service:     req.Service,
+			Method:      req.Method,
+			Data:        req.Data,
+			Metadata:    req.Metadata,
+			Plaintext:   req.Plaintext,
+			ImportPaths: req.ImportPaths,
+			SessionRoot: session.RootPath,
+		})
+
+		tookMs := time.Since(startTime).Milliseconds()
+
+		if err != nil {
+			// Emit error event via WebSocket
+			h.wsHub.EmitToSession(sessionID, "grpc://error", gin.H{
+				"error":   err.Error(),
+				"took_ms": tookMs,
+				"kind":    "error",
+			})
+		} else {
+			// Emit success event via WebSocket
+			h.wsHub.EmitToSession(sessionID, "grpc://response", gin.H{
+				"raw":     result.Response,
+				"parsed":  result.Response,
+				"took_ms": tookMs,
+			})
+		}
+	}()
+
+	// Immediately return accepted status
+	c.JSON(http.StatusAccepted, gin.H{
+		"message": "gRPC call initiated",
+	})
 }
 
 // ListServicesRequest represents a request to list services
@@ -114,12 +144,19 @@ func (h *GRPCHandler) ListServices(c *gin.Context) {
 		return
 	}
 
+	// Build proto file paths from session
+	protoFiles := make([]string, len(session.ProtoFiles))
+	for i, pf := range session.ProtoFiles {
+		protoFiles[i] = pf.AbsolutePath
+	}
+
 	// List services using grpcurl
 	services, err := h.grpcProxy.ListServices(c.Request.Context(), grpc.ListOptions{
-		SessionID:  sessionID,
-		ProtoFiles: session.ProtoFiles,
-		Target:     req.Target,
-		Plaintext:  req.Plaintext,
+		SessionID:   sessionID,
+		ProtoFiles:  protoFiles,
+		Target:      req.Target,
+		Plaintext:   req.Plaintext,
+		SessionRoot: session.RootPath,
 	})
 
 	if err != nil {
@@ -168,13 +205,20 @@ func (h *GRPCHandler) DescribeService(c *gin.Context) {
 		return
 	}
 
+	// Build proto file paths from session
+	protoFiles := make([]string, len(session.ProtoFiles))
+	for i, pf := range session.ProtoFiles {
+		protoFiles[i] = pf.AbsolutePath
+	}
+
 	// Describe service using grpcurl
 	description, err := h.grpcProxy.DescribeService(c.Request.Context(), grpc.DescribeOptions{
-		SessionID:  sessionID,
-		ProtoFiles: session.ProtoFiles,
-		Target:     req.Target,
-		Service:    req.Service,
-		Plaintext:  req.Plaintext,
+		SessionID:   sessionID,
+		ProtoFiles:  protoFiles,
+		Target:      req.Target,
+		Service:     req.Service,
+		Plaintext:   req.Plaintext,
+		SessionRoot: session.RootPath,
 	})
 
 	if err != nil {

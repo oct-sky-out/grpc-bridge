@@ -11,12 +11,20 @@
   "targets": {
     "build": {
       "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/dist/bin"],
       "options": {
-        "command": "go build -x -o ../../dist/apps/server ./main.go",
+        "command": "go build -o ../../dist/bin/grpc-bridge-server ./main.go",
         "cwd": "apps/server"
       }
     },
     "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "go run ./main.go",
+        "cwd": "apps/server"
+      }
+    },
+    "dev": {
       "executor": "nx:run-commands",
       "options": {
         "command": "go run ./main.go",
