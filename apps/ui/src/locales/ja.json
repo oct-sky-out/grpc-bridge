@@ -45,7 +45,9 @@
         "selectRoot": "ルートを選択",
         "confirmRemove": "このルートを削除しますか？",
         "removeSuccess": "ルートが正常に削除されました",
-        "removeRoot": "ルートを削除"
+        "removeRoot": "ルートを削除",
+        "uploadProtos": "Protoファイルをアップロード",
+        "knownRoots": "既知のルート"
     },
     "grpc": {
         "configuration": "設定",

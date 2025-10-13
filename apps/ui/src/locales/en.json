@@ -45,7 +45,9 @@
         "selectRoot": "Select root",
         "confirmRemove": "Remove this root?",
         "removeSuccess": "Root removed successfully",
-        "removeRoot": "Remove Root"
+        "removeRoot": "Remove Root",
+        "uploadProtos": "Upload Proto Files",
+        "knownRoots": "Known Roots"
     },
     "grpc": {
         "configuration": "Configuration",
