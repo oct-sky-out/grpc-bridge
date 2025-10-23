@@ -98,7 +98,7 @@ Write-Host "   ✅ Dependencies installed" -ForegroundColor Green
 # Test build
 Write-Host "🧪 Testing build..." -ForegroundColor Green
 try {
-    pnpm build
+    pnpm nx run ui:build
     Write-Host "   ✅ Frontend build successful" -ForegroundColor Green
 } catch {
     Write-Host "   ❌ Frontend build failed" -ForegroundColor Red
@@ -111,14 +111,19 @@ Write-Host "🎉 Development environment setup complete!" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "📋 Next steps:" -ForegroundColor White
-Write-Host "   1. Run 'pnpm tauri dev' to start development" -ForegroundColor Yellow
-Write-Host "   2. Run 'pnpm tauri build' to create production build" -ForegroundColor Yellow
+Write-Host "   1. Run 'pnpm dev' to start development (Tauri + UI)" -ForegroundColor Yellow
+Write-Host "   2. Run 'pnpm dev:ui' to start UI only" -ForegroundColor Yellow
+Write-Host "   3. Run 'pnpm build' to build all projects" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "🔧 Available commands:" -ForegroundColor White
-Write-Host "   pnpm tauri dev      - Start development server" -ForegroundColor Gray
-Write-Host "   pnpm tauri build    - Build production app" -ForegroundColor Gray
-Write-Host "   pnpm lint           - Run linting" -ForegroundColor Gray
+Write-Host "   pnpm dev            - Start Tauri development server" -ForegroundColor Gray
+Write-Host "   pnpm dev:ui         - Start UI development server only" -ForegroundColor Gray
+Write-Host "   pnpm build          - Build all projects" -ForegroundColor Gray
+Write-Host "   pnpm build:ui       - Build UI only" -ForegroundColor Gray
+Write-Host "   pnpm build:desktop  - Build desktop app only" -ForegroundColor Gray
+Write-Host "   pnpm lint           - Run linting on all projects" -ForegroundColor Gray
 Write-Host "   pnpm format         - Format code" -ForegroundColor Gray
-Write-Host "   pnpm type-check     - Type check TypeScript" -ForegroundColor Gray
+Write-Host "   pnpm type-check     - Type check TypeScript on all projects" -ForegroundColor Gray
+Write-Host "   pnpm graph          - View project dependency graph" -ForegroundColor Gray
 Write-Host ""
 Write-Host "✨ Happy coding!" -ForegroundColor Magenta

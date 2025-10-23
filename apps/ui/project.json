@@ -1,0 +1,44 @@
+{
+  "name": "@grpc-bridge/ui",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/ui/src",
+  "projectType": "application",
+  "tags": ["type:app", "platform:web"],
+  "targets": {
+    "dev": {
+      "executor": "@nx/vite:dev-server",
+      "options": {
+        "buildTarget": "build"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/dist"],
+      "options": {
+        "command": "vite build",
+        "cwd": "apps/ui"
+      }
+    },
+    "preview": {
+      "executor": "@nx/vite:preview-server",
+      "dependsOn": ["build"],
+      "options": {
+        "buildTarget": "build"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "eslint apps/ui/src",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "type-check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit -p apps/ui/tsconfig.json",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  }
+}

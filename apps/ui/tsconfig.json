@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@grpc-bridge/shared": [
+        "../../libs/shared/src/index.ts"
+      ],
+      "@grpc-bridge/shared/*": [
+        "../../libs/shared/src/*"
+      ]
+    }
+  },
+  "include": [
+    "src"
+  ]
+}
