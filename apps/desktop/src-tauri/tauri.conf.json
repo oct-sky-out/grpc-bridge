@@ -5,7 +5,7 @@
   "identifier": "com.example.grpcbridge",
   "build": {
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "pnpm --filter @grpc-bridge/ui dev",
+    "beforeDevCommand": "pnpm --filter @grpc-bridge/ui dev:desktop",
     "beforeBuildCommand": "pnpm --filter @grpc-bridge/ui build:desktop",
     "frontendDist": "../../../dist/desktop"
   },

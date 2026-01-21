@@ -140,9 +140,10 @@ type ListOptions struct {
 func (p *Proxy) ListServices(ctx context.Context, opts ListOptions) ([]string, error) {
 	args := []string{}
 
-	// Add session root as import path
+	// Add session root as import path (MUST be absolute path)
 	if opts.SessionRoot != "" {
 		args = append(args, "-import-path", opts.SessionRoot)
+		fmt.Printf("[grpcurl] Adding import path: %s\n", opts.SessionRoot)
 	}
 
 	// Add proto files
@@ -157,6 +158,8 @@ func (p *Proxy) ListServices(ctx context.Context, opts ListOptions) ([]string, e
 
 	// List services
 	args = append(args, opts.Target, "list")
+
+	fmt.Printf("[grpcurl] Executing: %s %v\n", p.grpcurlPath, args)
 
 	// Execute grpcurl command
 	cmd := exec.CommandContext(ctx, p.grpcurlPath, args...)

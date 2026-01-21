@@ -47,7 +47,9 @@
         "removeSuccess": "루트가 성공적으로 삭제되었습니다",
         "removeRoot": "루트 삭제",
         "uploadProtos": "Proto 파일 업로드",
-        "knownRoots": "알려진 루트"
+        "uploadTitle": "Proto 파일 업로드",
+        "knownRoots": "알려진 루트",
+        "webHint": "Proto 파일을 업로드하세요. 여러 번 업로드하여 동일한 세션에 파일을 추가할 수 있습니다."
     },
     "grpc": {
         "configuration": "구성",

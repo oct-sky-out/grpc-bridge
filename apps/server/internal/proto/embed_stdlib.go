@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Embedded standard proto library files
@@ -28,18 +29,20 @@ func NewStdlibManager() *StdlibManager {
 
 // ExtractToDirectory extracts all standard library files to a target directory
 func (m *StdlibManager) ExtractToDirectory(targetDir string) error {
-	return fs.WalkDir(m.embeddedFS, ".", func(path string, d fs.DirEntry, err error) error {
+	return fs.WalkDir(m.embeddedFS, "stdlib", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		// Skip the root directory
-		if path == "." {
+		// Skip the stdlib root directory itself
+		if path == "stdlib" {
 			return nil
 		}
 
-		// Build target path
-		targetPath := filepath.Join(targetDir, path)
+		// Remove "stdlib/" prefix from path for target
+		// e.g., "stdlib/google/api/annotations.proto" -> "google/api/annotations.proto"
+		relativePath := strings.TrimPrefix(path, "stdlib/")
+		targetPath := filepath.Join(targetDir, relativePath)
 
 		if d.IsDir() {
 			// Create directory

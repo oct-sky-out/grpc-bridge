@@ -127,8 +127,10 @@ export interface GRPCError {
 export interface GRPCManager {
   /**
    * List available gRPC services
+   * Desktop: Reads from proto files (target not needed)
+   * Web: Uses gRPC reflection (target required)
    */
-  listServices(rootId?: string): Promise<ServiceMeta[]>;
+  listServices(rootId?: string, target?: string): Promise<ServiceMeta[]>;
 
   /**
    * Get method request skeleton
@@ -184,6 +186,6 @@ export interface ProtoIndexDonePayload {
   files: string[];
 }
 
-export interface GRPCResponsePayload extends GRPCResponse {}
+export type GRPCResponsePayload = GRPCResponse
 
-export interface GRPCErrorPayload extends GRPCError {}
+export type GRPCErrorPayload = GRPCError

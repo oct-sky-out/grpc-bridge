@@ -93,15 +93,15 @@ class DesktopProtoManager implements ProtoManager {
   }
 
   async scanProtoRoot(rootId: string): Promise<void> {
-    await invoke('scan_proto_root', { rootId });
+    await invoke('scan_proto_root', { root_id: rootId });
   }
 
   async listProtoFiles(rootId: string): Promise<string[]> {
-    return invoke<string[]>('list_proto_files', { rootId });
+    return invoke<string[]>('list_proto_files', { root_id: rootId });
   }
 
   async removeProtoRoot(rootId: string): Promise<void> {
-    await invoke('remove_proto_root', { rootId });
+    await invoke('remove_proto_root', { root_id: rootId });
   }
 }
 
@@ -110,15 +110,16 @@ class DesktopProtoManager implements ProtoManager {
 // ============================================================================
 
 class DesktopGRPCManager implements GRPCManager {
-  async listServices(rootId?: string): Promise<ServiceMeta[]> {
+  async listServices(rootId?: string, _target?: string): Promise<ServiceMeta[]> {
+    // Desktop reads from proto files, target is not needed
     return invoke<ServiceMeta[]>('list_services', {
-      rootId: rootId || undefined,
+      root_id: rootId || undefined,
     });
   }
 
   async getMethodSkeleton(fqService: string, method: string): Promise<string> {
     return invoke<string>('get_method_skeleton', {
-      fqService,
+      fq_service: fqService,
       method,
     });
   }
@@ -131,7 +132,7 @@ class DesktopGRPCManager implements GRPCManager {
         method: params.method,
         payload: params.payload,
         proto_files: params.proto_files,
-        rootId: params.root_id,
+        root_id: params.root_id,
         headers: params.headers,
       },
     });
@@ -143,7 +144,7 @@ class DesktopGRPCManager implements GRPCManager {
 // ============================================================================
 
 export class DesktopAdapter implements PlatformAdapter {
-  type: 'desktop' = 'desktop';
+  type = 'desktop' as const;
   proto: ProtoManager;
   grpc: GRPCManager;
   events: EventManager;

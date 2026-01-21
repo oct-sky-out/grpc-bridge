@@ -47,7 +47,9 @@
         "removeSuccess": "Root removed successfully",
         "removeRoot": "Remove Root",
         "uploadProtos": "Upload Proto Files",
-        "knownRoots": "Known Roots"
+        "uploadTitle": "Proto Files Upload",
+        "knownRoots": "Known Roots",
+        "webHint": "Upload your proto files. You can upload multiple times to add more files to the same session."
     },
     "grpc": {
         "configuration": "Configuration",

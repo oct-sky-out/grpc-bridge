@@ -6,8 +6,7 @@
   "packageManager": "pnpm@9.0.0",
   "scripts": {
     "dev:desktop": "nx run desktop:dev",
-    "dev:ui": "nx run ui:dev",
-    "dev:ui:web": "pnpm --filter @grpc-bridge/ui dev:web",
+    "dev:ui": "pnpm --filter @grpc-bridge/ui dev:web",
     "dev:server": "nx run server:dev",
     "build": "bash scripts/build-all.sh",
     "build:web": "bash scripts/build-web.sh",

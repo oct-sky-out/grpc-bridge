@@ -27,12 +27,18 @@ function isTauri(): boolean {
 export function detectPlatform(): 'desktop' | 'web' {
   // First check build-time environment variable
   const buildPlatform = import.meta.env.VITE_PLATFORM;
+  console.log('[Platform] VITE_PLATFORM:', buildPlatform);
+  
   if (buildPlatform === 'web' || buildPlatform === 'desktop') {
+    console.log('[Platform] Using build-time platform:', buildPlatform);
     return buildPlatform;
   }
 
   // Fallback to runtime detection
-  return isTauri() ? 'desktop' : 'web';
+  const hasTauri = isTauri();
+  const runtimePlatform = hasTauri ? 'desktop' : 'web';
+  console.log('[Platform] Using runtime detection:', runtimePlatform, '(Tauri:', hasTauri, ')');
+  return runtimePlatform;
 }
 
 // ============================================================================

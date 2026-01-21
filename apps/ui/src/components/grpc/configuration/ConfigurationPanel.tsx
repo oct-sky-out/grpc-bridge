@@ -17,6 +17,11 @@ export const ConfigurationPanel: React.FC = () => {
   const selectAllFiles = useProtoFiles(s => s.selectAll);
   const clearFiles = useProtoFiles(s => s.clear);
 
+  // Log platform type for debugging
+  React.useEffect(() => {
+    console.log('[ConfigurationPanel] Platform type:', platform.type);
+  }, []);
+
   return (
     <Card className="lg:col-span-1">
       <CardHeader className="pb-4">

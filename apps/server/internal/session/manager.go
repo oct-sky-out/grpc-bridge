@@ -17,6 +17,15 @@ type ProtoFile struct {
 	Size         int64  `json:"size"`          // File size in bytes
 }
 
+// ProtoDir represents a directory in the uploaded proto structure
+// We store directories explicitly so the client (or future tooling) does not
+// need to re-derive hierarchy from file paths alone (useful for empty dirs
+// or quickly rendering large trees).
+type ProtoDir struct {
+	RelativePath string `json:"relative_path"` // e.g., "api/v1"
+	AbsolutePath string `json:"absolute_path"` // Full path on server
+}
+
 // ServiceInfo represents a parsed gRPC service
 type ServiceInfo struct {
 	FQService string       `json:"fq_service"` // Fully qualified service name
@@ -39,6 +48,7 @@ type Session struct {
 	CreatedAt  time.Time     `json:"created_at"`
 	ExpiresAt  time.Time     `json:"expires_at"`
 	ProtoFiles []ProtoFile   `json:"proto_files"` // Uploaded proto files with structure
+	Directories []ProtoDir   `json:"directories"` // Uploaded directory hierarchy (excluding root)
 	Services   []ServiceInfo `json:"services"`    // Parsed services (cached)
 	ParsedAt   *time.Time    `json:"parsed_at"`   // Last parse time
 	RootPath   string        `json:"root_path"`   // Root directory path on server
@@ -78,8 +88,34 @@ func (m *Manager) Create(name string) *Session {
 		CreatedAt:  time.Now(),
 		ExpiresAt:  time.Now().Add(m.ttl),
 		ProtoFiles: []ProtoFile{},
+		Directories: []ProtoDir{},
 		Services:   []ServiceInfo{},
 		RootPath:   "", // Will be set when files are uploaded
+	}
+
+	m.sessions[session.ID] = session
+	return session
+}
+
+// CreateWithID creates a new session with a specific ID
+func (m *Manager) CreateWithID(id, name string) *Session {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check if session already exists
+	if existing, exists := m.sessions[id]; exists {
+		return existing
+	}
+
+	session := &Session{
+		ID:         id,
+		Name:       name,
+		CreatedAt:  time.Now(),
+		ExpiresAt:  time.Now().Add(m.ttl),
+		ProtoFiles: []ProtoFile{},
+		Directories: []ProtoDir{},
+		Services:   []ServiceInfo{},
+		RootPath:   "",
 	}
 
 	m.sessions[session.ID] = session
@@ -131,6 +167,31 @@ func (m *Manager) AddProtoFile(sessionID string, file ProtoFile) error {
 	}
 
 	session.ProtoFiles = append(session.ProtoFiles, file)
+	return nil
+}
+
+// AddDirectories merges a set of directories into the session (deduplicated)
+func (m *Manager) AddDirectories(sessionID string, dirs []ProtoDir) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	session, exists := m.sessions[sessionID]
+	if !exists {
+		return ErrSessionNotFound
+	}
+
+	// Build a set of existing dirs for quick lookup
+	existing := make(map[string]struct{}, len(session.Directories))
+	for _, d := range session.Directories { existing[d.RelativePath] = struct{}{} }
+
+	for _, d := range dirs {
+		if d.RelativePath == "" { // skip root marker
+			continue
+		}
+		if _, ok := existing[d.RelativePath]; ok { continue }
+		session.Directories = append(session.Directories, d)
+		existing[d.RelativePath] = struct{}{}
+	}
 	return nil
 }
 

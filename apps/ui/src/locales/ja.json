@@ -47,7 +47,9 @@
         "removeSuccess": "ルートが正常に削除されました",
         "removeRoot": "ルートを削除",
         "uploadProtos": "Protoファイルをアップロード",
-        "knownRoots": "既知のルート"
+        "uploadTitle": "Protoファイルのアップロード",
+        "knownRoots": "既知のルート",
+        "webHint": "Protoファイルをアップロードしてください。複数回アップロードして同じセッションにファイルを追加できます。"
     },
     "grpc": {
         "configuration": "設定",

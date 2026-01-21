@@ -13,7 +13,6 @@ export const ExecuteRequestPanel: React.FC = () => {
   const {
     busy,
     setBusy,
-    rootPath,
     rootId,
     target,
     service,
@@ -30,10 +29,6 @@ export const ExecuteRequestPanel: React.FC = () => {
 
   const run = async () => {
     if (busy) return;
-    if (!rootPath) {
-      toast.error(t('errors.protoRootRequired'));
-      return;
-    }
     if (!service || !method) {
       toast.error(t('errors.serviceMethodRequired'));
       return;

@@ -19,6 +19,7 @@ const App: React.FC = () => {
   const setIndexing = useRequestStore((s) => s.setIndexing);
   const setLastResponse = useRequestStore((s) => s.setLastResponse);
   const setKnownRoots = useRequestStore((s) => s.setKnownRoots);
+  const target = useRequestStore((s) => s.target); // Get target for listServices
   const updatePendingHistory = useHistoryStore((s) => s.updatePending);
 
   const setServices = useServicesStore((s) => s.setServices);
@@ -46,17 +47,36 @@ const App: React.FC = () => {
         // proto://index_done
         unsubscribers.push(
           platform.events.on('proto://index_done', async (payload: ProtoIndexDonePayload) => {
+            console.log('[App] proto://index_done received:', payload);
             setIndexing(false);
-            try {
-              const list = await platform.grpc.listServices(payload.rootId);
+              try {
+              const list = await platform.grpc.listServices(payload.rootId, target);
               setServices(list);
               if (payload.files) {
+                console.log('[App] Setting proto files:', payload.files);
                 setProtoFiles(payload.files);
+              } else {
+                console.warn('[App] No files in payload');
               }
               toast.success(`Indexed services: ${list.length}`);
-            } catch (err: any) {
-              toast.error('List services failed');
-              console.error('[App] Failed to list services:', err);
+            } catch (err: unknown) {
+              const msg = err instanceof Error ? err.message : String(err);
+              console.warn('[App] listServices initial attempt failed:', msg);
+              const lowered = msg.toLowerCase();
+              if (lowered.includes('unavailable') || lowered.includes('connection refused') || lowered.includes('dial tcp')) {
+                console.log('[App] Retrying listServices with local proto parsing (empty target)');
+                try {
+                  const localList = await platform.grpc.listServices(payload.rootId, '');
+                  setServices(localList);
+                  toast.success(`Indexed (local proto) services: ${localList.length}`);
+                } catch (inner) {
+                  console.error('[App] Local proto parse fallback failed:', inner);
+                  toast.error('List services failed (reflection + local)');
+                }
+              } else {
+                toast.error('List services failed');
+                console.error('[App] Failed to list services:', err);
+              }
             }
           })
         );
@@ -106,7 +126,7 @@ const App: React.FC = () => {
         cleanupFn();
       }
     };
-  }, [setBusy, setLastResponse, setIndexing, updatePendingHistory, setServices, setProtoFiles, setKnownRoots]);
+  }, [setBusy, setLastResponse, setIndexing, updatePendingHistory, setServices, setProtoFiles, setKnownRoots, target]);
 
   return (
     <ThemeProvider>

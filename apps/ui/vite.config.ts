@@ -10,6 +10,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src'),
     },
   },
+  define: {
+    // Default to desktop platform for backward compatibility
+    'import.meta.env.VITE_PLATFORM': JSON.stringify('desktop'),
+  },
   // Tauri expects the build output in the parent's dist directory
   build: {
     outDir: '../../dist',

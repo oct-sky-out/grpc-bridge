@@ -20,11 +20,27 @@ func main() {
 		port = "8080"
 	}
 
-	// Initialize upload directory
+	// Initialize upload directory (use absolute path)
 	uploadDir := "./uploads"
 	if dir := os.Getenv("UPLOAD_DIR"); dir != "" {
 		uploadDir = dir
 	}
+	
+	// Convert to absolute path
+	absUploadDir, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("Failed to get working directory: %v", err)
+	}
+	if uploadDir[0] == '.' {
+		uploadDir = absUploadDir + uploadDir[1:]
+	}
+	
+	// Ensure upload directory exists
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		log.Fatalf("Failed to create upload directory: %v", err)
+	}
+	
+	log.Printf("Upload directory: %s", uploadDir)
 
 	// Initialize services
 	sessionManager := session.NewManager(uploadDir)
@@ -35,6 +51,7 @@ func main() {
 	router := gin.Default()
 
 	// Apply middleware
+	router.SetTrustedProxies([]string{"127.0.0.1"})
 	router.Use(middleware.CORS())
 	router.Use(middleware.Logger())
 

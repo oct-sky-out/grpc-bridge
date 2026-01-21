@@ -20,6 +20,25 @@ import type { ServiceMeta } from '@/state/services';
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
 
+// ---------------------------------------------------------------------------
+// Helper utilities (local to web adapter)
+// ---------------------------------------------------------------------------
+function safeJsonParse(txt: string): unknown {
+  try {
+    return JSON.parse(txt);
+  } catch {
+    return {};
+  }
+}
+
+interface HeaderKV { id: string; key: string; value: string; }
+function headersArrayToMap(headers?: HeaderKV[]): Record<string, string> | undefined {
+  if (!headers) return undefined;
+  const out: Record<string, string> = {};
+  headers.filter(h => h.key.trim() !== '').forEach(h => { out[h.key] = h.value; });
+  return out;
+}
+
 // ============================================================================
 // Web Event Manager (EventEmitter-like)
 // ============================================================================
@@ -49,6 +68,7 @@ class WebEventManager implements EventManager {
         try {
           const message = JSON.parse(event.data);
           const { event: eventName, payload } = message;
+          console.log('[WebEventManager] Received event:', eventName, payload);
           this.emit(eventName, payload);
         } catch (error) {
           console.error('[WebEventManager] Failed to parse message:', error);
@@ -97,7 +117,7 @@ class WebEventManager implements EventManager {
     return sessionId;
   }
 
-  on<T = any>(event: string, callback: EventCallback<T>): () => void {
+  on<T>(event: string, callback: EventCallback<T>): () => void {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
     }
@@ -115,7 +135,7 @@ class WebEventManager implements EventManager {
     };
   }
 
-  emit<T = any>(event: string, payload: T): void {
+  emit<T>(event: string, payload: T): void {
     const callbacks = this.listeners.get(event);
     if (callbacks) {
       callbacks.forEach((callback) => {
@@ -180,12 +200,13 @@ class HTTPClient {
     const url = `${this.baseURL}${endpoint}`;
     const headers = {
       'Content-Type': 'application/json',
-      'X-Session-Id': this.sessionId,
+      // Server expects X-Session-ID (uppercase D). Use that; keep legacy key only if ever needed.
+      'X-Session-ID': this.sessionId,
       ...options.headers,
     };
 
     try {
-      const response = await fetch(url, {
+          const response = await fetch(url, {
         ...options,
         headers,
       });
@@ -197,8 +218,8 @@ class HTTPClient {
 
       return response.json();
     } catch (error) {
-      console.error(`[HTTPClient] Request failed: ${endpoint}`, error);
-      throw error;
+          console.error(`[HTTPClient] Request failed: ${endpoint}`, error);
+          throw error;
     }
   }
 
@@ -206,7 +227,7 @@ class HTTPClient {
     return this.request<T>(endpoint, { method: 'GET' });
   }
 
-  async post<T>(endpoint: string, body?: any): Promise<T> {
+  async post<T>(endpoint: string, body?: unknown): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: body ? JSON.stringify(body) : undefined,
@@ -234,7 +255,6 @@ class WebProtoManager implements ProtoManager {
     return new Promise((resolve, reject) => {
       const input = document.createElement('input');
       input.type = 'file';
-      // @ts-expect-error webkitdirectory is not in TypeScript types
       input.webkitdirectory = true;
       input.multiple = true;
 
@@ -257,7 +277,6 @@ class WebProtoManager implements ProtoManager {
 
         // Get directory name from first file's path
         const firstFile = protoFiles[0];
-        // @ts-expect-error webkitRelativePath exists
         const relativePath = firstFile.webkitRelativePath || firstFile.name;
         const dirName = relativePath.split('/')[0] || 'Proto Files';
 
@@ -273,21 +292,27 @@ class WebProtoManager implements ProtoManager {
   }
 
   async registerProtoRoot(name: string): Promise<string> {
-    // For web, registerProtoRoot means creating a new session
-    // The session ID becomes the root ID
-    const response = await this.client.post<{ session: { id: string } }>(
-      '/api/sessions',
-      { name }
-    );
+    // For web, registerProtoRoot uses the existing session ID
+    // This ensures all proto uploads go to the same session
+    const sessionId = this.client.getSessionId();
+    
+    // Check if session already exists on server
+    try {
+      await this.client.get(`/api/sessions/${sessionId}`);
+      console.log(`[WebProtoManager] Reusing existing session: ${sessionId}`);
+    } catch (error) {
+      // Session doesn't exist, create it
+      console.log(`[WebProtoManager] Creating new session: ${sessionId}`);
+      await this.client.post('/api/sessions', { name });
+    }
 
-    const rootId = response.session.id;
     const root: ProtoRoot = {
-      id: rootId,
+      id: sessionId,
       path: name, // Display name
       last_scan: Date.now(),
     };
-    this.roots.set(rootId, root);
-    return rootId;
+    this.roots.set(sessionId, root);
+    return sessionId;
   }
 
   async listProtoRoots(): Promise<ProtoRoot[]> {
@@ -296,7 +321,7 @@ class WebProtoManager implements ProtoManager {
 
   async scanProtoRoot(rootId: string): Promise<void> {
     // For web, scanning means analyzing the uploaded proto files
-    // This triggers proto://analyze_start and proto://analyze_done events
+    // This triggers proto://index_start and proto://index_done events
     await this.client.get(`/api/sessions/${rootId}/analyze`);
   }
 
@@ -316,12 +341,19 @@ class WebProtoManager implements ProtoManager {
   /**
    * Upload proto files using webkitdirectory (preserves directory structure)
    */
-  async uploadProtoStructure(sessionId: string, files: File[]): Promise<void> {
+  async uploadProtoStructure(sessionId: string, files: File[], opts?: { stripRoot?: string }): Promise<void> {
     const formData = new FormData();
 
-    // Add all files with their relative paths (browser provides this via webkitdirectory)
+    const stripRoot = opts?.stripRoot;
     files.forEach(file => {
-      formData.append('files', file, file.webkitRelativePath || file.name);
+      const rel = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+      let effective = rel;
+      if (stripRoot && rel.startsWith(stripRoot + '/')) {
+        const candidate = rel.substring(stripRoot.length + 1);
+        // Only adopt stripped path if it isn't empty and preserves folder depth semantics
+        effective = candidate.length > 0 ? candidate : rel;
+      }
+      formData.append('files', file, effective);
     });
     formData.append('sessionId', sessionId);
 
@@ -354,14 +386,18 @@ class WebGRPCManager implements GRPCManager {
     this.client = client;
   }
 
-  async listServices(rootId?: string): Promise<ServiceMeta[]> {
-    const response = await this.client.post<{ services: ServiceMeta[] }>(
+  async listServices(rootId?: string, target?: string): Promise<ServiceMeta[]> {
+    const response = await this.client.post<{ services: ServiceMeta[]; source?: string }>(
       '/api/grpc/services',
       {
         sessionId: this.client.getSessionId(),
         rootId,
+        target: target || '', // If empty, server will read from proto files
+        plaintext: true, // Default to plaintext for development
       }
     );
+    
+    console.log(`[WebGRPCManager] listServices source: ${response.source || 'unknown'}, count: ${response.services.length}`);
     return response.services;
   }
 
@@ -384,10 +420,12 @@ class WebGRPCManager implements GRPCManager {
       target: params.target,
       service: params.service,
       method: params.method,
-      payload: params.payload,
-      protoFiles: params.proto_files,
-      rootId: params.root_id,
-      headers: params.headers,
+      data: params.payload ? safeJsonParse(params.payload) : {},
+      // params.headers may already be key/value pairs from UI; if it's a string[] fallback skip mapping
+      metadata: Array.isArray(params.headers) && (params.headers as unknown as HeaderKV[])[0]?.key !== undefined
+        ? headersArrayToMap(params.headers as unknown as HeaderKV[])
+        : undefined,
+      plaintext: true,
     });
   }
 }
@@ -397,7 +435,7 @@ class WebGRPCManager implements GRPCManager {
 // ============================================================================
 
 export class WebAdapter implements PlatformAdapter {
-  type: 'web' = 'web';
+  readonly type = 'web' as const;
   proto: ProtoManager;
   grpc: GRPCManager;
   events: EventManager;
@@ -413,16 +451,40 @@ export class WebAdapter implements PlatformAdapter {
   async initialize(): Promise<void> {
     console.log('[WebAdapter] Initialized');
 
-    // Create or retrieve session
+    // Ensure session exists
     try {
       const sessionId = this.client.getSessionId();
-      await this.client.post('/api/sessions', {
-        sessionId,
-      });
-      console.log(`[WebAdapter] Session initialized: ${sessionId}`);
-    } catch (error) {
-      console.error('[WebAdapter] Failed to initialize session:', error);
-      throw error;
+      console.log(`[WebAdapter] Using session ID: ${sessionId}`);
+      
+      // Try to get existing session
+      try {
+        const session = await this.client.get<{ session: { id: string } }>(`/api/sessions/${sessionId}`);
+        // If server somehow returned different ID (should not) sync.
+        if (session.session.id && session.session.id !== sessionId) {
+          localStorage.setItem('grpc-bridge-session-id', session.session.id);
+          (this.client as unknown as { sessionId: string }).sessionId = session.session.id;
+          console.log(`[WebAdapter] Session ID updated from server: ${session.session.id}`);
+        } else {
+          console.log(`[WebAdapter] Existing session found:`, session);
+        }
+  } catch {
+        // Session doesn't exist, create it
+        console.log(`[WebAdapter] Session not found, creating new session: ${sessionId}`);
+        const created = await this.client.post<{ session: { id: string } }>('/api/sessions', { 
+          sessionId,
+          name: 'Web Session'
+        });
+        if (created.session.id !== sessionId) {
+          localStorage.setItem('grpc-bridge-session-id', created.session.id);
+          (this.client as unknown as { sessionId: string }).sessionId = created.session.id;
+          console.log(`[WebAdapter] Server chose different session ID: ${created.session.id}`);
+        } else {
+          console.log(`[WebAdapter] Session created:`, created);
+        }
+      }
+    } catch (e) {
+      console.error('[WebAdapter] Failed to initialize session:', e);
+      throw e;
     }
   }
 

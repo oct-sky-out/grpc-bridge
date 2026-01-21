@@ -12,6 +12,7 @@ import type {
 /**
  * Hook to subscribe to proto index events
  * Listens to proto://index_start and proto://index_done
+ * Works for both desktop (scan) and web (analyze)
  */
 export function useProtoIndexEvents(
   onStart?: (rootId: string) => void,
@@ -37,9 +38,18 @@ export function useProtoIndexEvents(
  * Hook to subscribe to proto upload events (web only)
  * Listens to proto://upload_start, proto://upload_done, proto://upload_error
  */
+export interface ProtoUploadDonePayload {
+  uploaded_count: number;
+  error_count: number;
+  files?: Array<{ relative_path?: string; name?: string }>;
+  directories?: string[];
+  stripped_prefix?: string;
+  normalized?: boolean;
+}
+
 export function useProtoUploadEvents(
   onStart?: () => void,
-  onDone?: (payload: { uploaded_count: number; error_count: number }) => void,
+  onDone?: (payload: ProtoUploadDonePayload) => void,
   onError?: (error: string) => void
 ) {
   useEffect(() => {
@@ -49,7 +59,7 @@ export function useProtoUploadEvents(
       onStart?.();
     });
 
-    const unsubDone = platform.events.on('proto://upload_done', payload => {
+    const unsubDone = platform.events.on('proto://upload_done', (payload: ProtoUploadDonePayload) => {
       onDone?.(payload);
     });
 
@@ -63,32 +73,6 @@ export function useProtoUploadEvents(
       unsubError();
     };
   }, [onStart, onDone, onError]);
-}
-
-/**
- * Hook to subscribe to proto analyze events (web only)
- * Listens to proto://analyze_start and proto://analyze_done
- */
-export function useProtoAnalyzeEvents(
-  onStart?: () => void,
-  onDone?: (payload: { missing_count: number; missing_stdlib: string[] }) => void
-) {
-  useEffect(() => {
-    if (platform.type !== 'web') return;
-
-    const unsubStart = platform.events.on('proto://analyze_start', () => {
-      onStart?.();
-    });
-
-    const unsubDone = platform.events.on('proto://analyze_done', payload => {
-      onDone?.(payload);
-    });
-
-    return () => {
-      unsubStart();
-      unsubDone();
-    };
-  }, [onStart, onDone]);
 }
 
 /**
