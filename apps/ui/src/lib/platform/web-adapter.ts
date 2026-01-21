@@ -17,8 +17,8 @@ import type { ServiceMeta } from '@/state/services';
 // Configuration
 // ============================================================================
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8800';
+const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8800';
 
 // ---------------------------------------------------------------------------
 // Helper utilities (local to web adapter)
@@ -206,7 +206,7 @@ class HTTPClient {
     };
 
     try {
-          const response = await fetch(url, {
+      const response = await fetch(url, {
         ...options,
         headers,
       });
@@ -218,8 +218,8 @@ class HTTPClient {
 
       return response.json();
     } catch (error) {
-          console.error(`[HTTPClient] Request failed: ${endpoint}`, error);
-          throw error;
+      console.error(`[HTTPClient] Request failed: ${endpoint}`, error);
+      throw error;
     }
   }
 
@@ -295,7 +295,7 @@ class WebProtoManager implements ProtoManager {
     // For web, registerProtoRoot uses the existing session ID
     // This ensures all proto uploads go to the same session
     const sessionId = this.client.getSessionId();
-    
+
     // Check if session already exists on server
     try {
       await this.client.get(`/api/sessions/${sessionId}`);
@@ -396,7 +396,7 @@ class WebGRPCManager implements GRPCManager {
         plaintext: true, // Default to plaintext for development
       }
     );
-    
+
     console.log(`[WebGRPCManager] listServices source: ${response.source || 'unknown'}, count: ${response.services.length}`);
     return response.services;
   }
@@ -455,7 +455,7 @@ export class WebAdapter implements PlatformAdapter {
     try {
       const sessionId = this.client.getSessionId();
       console.log(`[WebAdapter] Using session ID: ${sessionId}`);
-      
+
       // Try to get existing session
       try {
         const session = await this.client.get<{ session: { id: string } }>(`/api/sessions/${sessionId}`);
@@ -467,10 +467,10 @@ export class WebAdapter implements PlatformAdapter {
         } else {
           console.log(`[WebAdapter] Existing session found:`, session);
         }
-  } catch {
+      } catch {
         // Session doesn't exist, create it
         console.log(`[WebAdapter] Session not found, creating new session: ${sessionId}`);
-        const created = await this.client.post<{ session: { id: string } }>('/api/sessions', { 
+        const created = await this.client.post<{ session: { id: string } }>('/api/sessions', {
           sessionId,
           name: 'Web Session'
         });

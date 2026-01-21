@@ -121,7 +121,7 @@ export function DirectoryPicker({
             });
             formData.append('sessionId', sessionId);
             formData.append('clientStripped', 'true');
-            const resp = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/proto/upload-structure`, { method: 'POST', body: formData });
+            const resp = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8800'}/api/proto/upload-structure`, { method: 'POST', body: formData });
             if (!resp.ok) {
               throw new Error(`Upload failed: ${await resp.text()}`);
             }
@@ -183,7 +183,7 @@ export function DirectoryPicker({
       });
       formData.append('sessionId', sessionId);
       formData.append('clientStripped', 'true');
-      const resp = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/proto/upload-structure`, { method: 'POST', body: formData });
+      const resp = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8800'}/api/proto/upload-structure`, { method: 'POST', body: formData });
       if (!resp.ok) { throw new Error(`Upload failed: ${await resp.text()}`); }
       setStatus('Analyzing dependencies...');
       await platform.proto.scanProtoRoot(sessionId);

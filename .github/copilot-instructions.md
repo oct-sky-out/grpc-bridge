@@ -43,7 +43,7 @@ grpc-bridge/                    # Nx monorepo (pnpm workspaces)
 # Desktop: UI (port 5173) + Rust dev build
 pnpm dev:desktop  # or nx run desktop:dev
 
-# Web: UI (port 5174) + Go API (port 8080)
+# Web: UI (port 5174) + Go API (port 8800)
 pnpm dev:ui       # Frontend only
 pnpm dev:server   # Backend only (nx run server:dev)
 

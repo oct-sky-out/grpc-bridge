@@ -288,7 +288,7 @@ PORT=9000 go run ./cmd/server/main.go
 
 ### Environment Variables
 
-- `PORT`: Server port (default: 8080)
+- `PORT`: Server port (default: 8800)
 - `GIN_MODE`: Gin mode (debug, release, test)
 
 ## Testing
@@ -297,23 +297,23 @@ Example using curl:
 
 ```bash
 # 1. Create a session
-SESSION_RESPONSE=$(curl -X POST http://localhost:8080/api/sessions)
+SESSION_RESPONSE=$(curl -X POST http://localhost:8800/api/sessions)
 SESSION_ID=$(echo $SESSION_RESPONSE | jq -r '.session.id')
 
 # 2. Upload proto files
-curl -X POST http://localhost:8080/api/upload/proto \
+curl -X POST http://localhost:8800/api/upload/proto \
   -H "X-Session-ID: $SESSION_ID" \
   -F "files=@service.proto" \
   -F "files=@types.proto"
 
 # 3. List services (requires gRPC server with reflection)
-curl -X POST http://localhost:8080/api/grpc/services \
+curl -X POST http://localhost:8800/api/grpc/services \
   -H "X-Session-ID: $SESSION_ID" \
   -H "Content-Type: application/json" \
   -d '{"target": "localhost:50051", "plaintext": true}'
 
 # 4. Call gRPC method
-curl -X POST http://localhost:8080/api/grpc/call \
+curl -X POST http://localhost:8800/api/grpc/call \
   -H "X-Session-ID: $SESSION_ID" \
   -H "Content-Type: application/json" \
   -d '{
@@ -325,7 +325,7 @@ curl -X POST http://localhost:8080/api/grpc/call \
   }'
 
 # 5. Delete session
-curl -X DELETE http://localhost:8080/api/sessions/$SESSION_ID
+curl -X DELETE http://localhost:8800/api/sessions/$SESSION_ID
 ```
 
 ## Features
