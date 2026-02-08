@@ -94,24 +94,21 @@ jobs:
           - name: Intel macOS DMG
             os: macos-13
             rust_target: x86_64-apple-darwin
-            build_target: x86_64-apple-darwin
-            bundle_type: dmg
+            build_phase: mac
             artifact_name: desktop-macos-intel-dmg
-            artifact_glob: dist-artifacts/*.dmg
+            artifact_glob: dist-artifacts/grpc-bridge-macos-x64
           - name: Apple Silicon macOS DMG
             os: macos-14
             rust_target: aarch64-apple-darwin
-            build_target: aarch64-apple-darwin
-            bundle_type: dmg
+            build_phase: mac
             artifact_name: desktop-macos-apple-dmg
-            artifact_glob: dist-artifacts/*.dmg
+            artifact_glob: dist-artifacts/grpc-bridge-macos-arm64
           - name: Windows EXE
             os: windows-latest
             rust_target: x86_64-pc-windows-msvc
-            build_target: x86_64-pc-windows-msvc
-            bundle_type: nsis
+            build_phase: windows
             artifact_name: desktop-windows-exe
-            artifact_glob: dist-artifacts/*.exe
+            artifact_glob: dist-artifacts/grpc-bridge-windows-x64.exe
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -131,8 +128,7 @@ jobs:
 
       - name: Build desktop bundle via cross-build
         env:
-          BUILD_TARGET: ${{ matrix.build_target }}
-          BUNDLE_TYPE: ${{ matrix.bundle_type }}
+          BUILD_PHASE: ${{ matrix.build_phase }}
           INSTALL_DEPS: true
           OUTPUT_DIR: dist-artifacts
         run: bash ./scripts/cross-build.sh
@@ -216,5 +212,5 @@ jobs:
           name: gRPC Bridge ${{ needs.prepare.outputs.tag }}
           body_path: RELEASE_NOTES.md
           files: |
-            release-assets/**/*.dmg
+            release-assets/**/grpc-bridge-macos-*
             release-assets/**/*.exe

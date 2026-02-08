@@ -51,12 +51,10 @@ jobs:
         include:
           - name: macOS DMG
             os: macos-latest
-            build_target: aarch64-apple-darwin
-            bundle_type: dmg
+            build_phase: mac
           - name: Windows EXE
             os: windows-latest
-            build_target: x86_64-pc-windows-msvc
-            bundle_type: nsis
+            build_phase: windows
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -74,8 +72,7 @@ jobs:
 
       - name: Build desktop bundle via cross-build
         env:
-          BUILD_TARGET: ${{ matrix.build_target }}
-          BUNDLE_TYPE: ${{ matrix.bundle_type }}
+          BUILD_PHASE: ${{ matrix.build_phase }}
           INSTALL_DEPS: true
         run: bash ./scripts/cross-build.sh
 
