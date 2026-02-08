@@ -8,7 +8,7 @@ import (
 
 // Embedded frontend build files from dist/web directory
 //
-// go:embed all:dist
+//go:embed all:dist
 var embeddedFiles embed.FS
 
 // GetFS returns the embedded filesystem for serving static files

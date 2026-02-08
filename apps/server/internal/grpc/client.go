@@ -2,8 +2,14 @@ package grpc
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
+	"sort"
+	"sync"
 	"time"
 
 	"github.com/jhump/protoreflect/desc"
@@ -11,6 +17,7 @@ import (
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/jhump/protoreflect/dynamic/grpcdynamic"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	reflectionpb "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
@@ -19,13 +26,16 @@ import (
 // NativeClient implements gRPC calls using native Go gRPC client
 type NativeClient struct {
 	// Cache for file descriptors by session
-	descriptorCache map[string]map[string]*desc.FileDescriptor
+	descriptorCache  map[string]map[string]*desc.FileDescriptor
+	cacheFingerprint map[string]string
+	mu               sync.RWMutex
 }
 
 // NewNativeClient creates a new native gRPC client
 func NewNativeClient() *NativeClient {
 	return &NativeClient{
-		descriptorCache: make(map[string]map[string]*desc.FileDescriptor),
+		descriptorCache:  make(map[string]map[string]*desc.FileDescriptor),
+		cacheFingerprint: make(map[string]string),
 	}
 }
 
@@ -45,10 +55,10 @@ type NativeCallOptions struct {
 
 // NativeCallResult represents the result of a native gRPC call
 type NativeCallResult struct {
-	Response interface{}            `json:"response"`
-	Headers  map[string][]string    `json:"headers,omitempty"`
-	Trailers map[string][]string    `json:"trailers,omitempty"`
-	Status   string                 `json:"status"`
+	Response interface{}         `json:"response"`
+	Headers  map[string][]string `json:"headers,omitempty"`
+	Trailers map[string][]string `json:"trailers,omitempty"`
+	Status   string              `json:"status"`
 }
 
 // Call executes a gRPC call using native Go gRPC client
@@ -82,6 +92,8 @@ func (c *NativeClient) Call(ctx context.Context, opts NativeCallOptions) (*Nativ
 	dialOpts := []grpc.DialOption{}
 	if opts.Plaintext {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	} else {
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
 	}
 
 	conn, err := grpc.NewClient(opts.Target, dialOpts...)
@@ -158,6 +170,8 @@ func (c *NativeClient) ListServices(ctx context.Context, target string, plaintex
 	dialOpts := []grpc.DialOption{}
 	if plaintext {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	} else {
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
 	}
 
 	conn, err := grpc.NewClient(target, dialOpts...)
@@ -203,8 +217,14 @@ func (c *NativeClient) ListServices(ctx context.Context, target string, plaintex
 
 // loadFileDescriptors loads and parses proto files for a session
 func (c *NativeClient) loadFileDescriptors(sessionID, sessionRoot string, protoFiles []string) (map[string]*desc.FileDescriptor, error) {
+	fingerprint := buildDescriptorFingerprint(sessionRoot, protoFiles)
+
 	// Check cache
-	if cached, exists := c.descriptorCache[sessionID]; exists {
+	c.mu.RLock()
+	cached, exists := c.descriptorCache[sessionID]
+	cachedFingerprint, fpExists := c.cacheFingerprint[sessionID]
+	c.mu.RUnlock()
+	if exists && fpExists && cachedFingerprint == fingerprint {
 		return cached, nil
 	}
 
@@ -236,7 +256,10 @@ func (c *NativeClient) loadFileDescriptors(sessionID, sessionRoot string, protoF
 	}
 
 	// Cache for this session
+	c.mu.Lock()
 	c.descriptorCache[sessionID] = descMap
+	c.cacheFingerprint[sessionID] = fingerprint
+	c.mu.Unlock()
 
 	return descMap, nil
 }
@@ -301,5 +324,26 @@ func (c *NativeClient) ListServicesFromProto(sessionID, sessionRoot string, prot
 
 // ClearCache clears the descriptor cache for a session (call on session delete)
 func (c *NativeClient) ClearCache(sessionID string) {
+	c.mu.Lock()
 	delete(c.descriptorCache, sessionID)
+	delete(c.cacheFingerprint, sessionID)
+	c.mu.Unlock()
+}
+
+func buildDescriptorFingerprint(sessionRoot string, protoFiles []string) string {
+	hasher := sha256.New()
+	_, _ = hasher.Write([]byte(sessionRoot))
+
+	files := append([]string(nil), protoFiles...)
+	sort.Strings(files)
+	for _, file := range files {
+		_, _ = hasher.Write([]byte(file))
+		if st, err := os.Stat(file); err == nil {
+			_, _ = hasher.Write([]byte(fmt.Sprintf("|%d|%d|", st.Size(), st.ModTime().UnixNano())))
+		} else {
+			_, _ = hasher.Write([]byte("|missing|"))
+		}
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil))
 }

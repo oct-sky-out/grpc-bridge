@@ -19,7 +19,6 @@ const App: React.FC = () => {
   const setIndexing = useRequestStore((s) => s.setIndexing);
   const setLastResponse = useRequestStore((s) => s.setLastResponse);
   const setKnownRoots = useRequestStore((s) => s.setKnownRoots);
-  const target = useRequestStore((s) => s.target); // Get target for listServices
   const updatePendingHistory = useHistoryStore((s) => s.updatePending);
 
   const setServices = useServicesStore((s) => s.setServices);
@@ -50,7 +49,8 @@ const App: React.FC = () => {
             console.log('[App] proto://index_done received:', payload);
             setIndexing(false);
               try {
-              const list = await platform.grpc.listServices(payload.rootId, target);
+              const currentTarget = useRequestStore.getState().target;
+              const list = await platform.grpc.listServices(payload.rootId, currentTarget);
               setServices(list);
               if (payload.files) {
                 console.log('[App] Setting proto files:', payload.files);
@@ -126,7 +126,7 @@ const App: React.FC = () => {
         cleanupFn();
       }
     };
-  }, [setBusy, setLastResponse, setIndexing, updatePendingHistory, setServices, setProtoFiles, setKnownRoots, target]);
+  }, [setBusy, setLastResponse, setIndexing, updatePendingHistory, setServices, setProtoFiles, setKnownRoots]);
 
   return (
     <ThemeProvider>

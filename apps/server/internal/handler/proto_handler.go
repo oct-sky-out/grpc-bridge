@@ -82,8 +82,39 @@ func (h *ProtoHandler) UploadStructure(c *gin.Context) {
 		return
 	}
 
-	// Create session directory
+	providedRelativePaths := form.Value["relative_paths"]
+	hasProvidedRelativePaths := len(providedRelativePaths) == len(files)
+	if len(providedRelativePaths) > 0 && !hasProvidedRelativePaths {
+		fmt.Printf("[UploadStructure] Warning: relative_paths count mismatch (files=%d, relative_paths=%d)\n", len(files), len(providedRelativePaths))
+	}
+	clientStripped := strings.EqualFold(c.PostForm("clientStripped"), "true")
+	if hasProvidedRelativePaths {
+		clientStripped = true
+	}
+
+	// Replace strategy: for one session, keep only the latest uploaded proto set.
+	// Remove existing session files first, then rebuild from the incoming upload.
 	sessionDir := filepath.Join(h.uploadDir, req.SessionID)
+	if err := os.RemoveAll(sessionDir); err != nil {
+		h.hub.EmitToSession(req.SessionID, "proto://upload_error", gin.H{
+			"error": "failed to clear previous uploaded files",
+		})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to clear previous uploaded files",
+		})
+		return
+	}
+	if err := h.sessionManager.ResetUploadState(req.SessionID); err != nil {
+		h.hub.EmitToSession(req.SessionID, "proto://upload_error", gin.H{
+			"error": "failed to reset previous upload state",
+		})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to reset previous upload state",
+		})
+		return
+	}
+
+	// Create session directory
 	if err := os.MkdirAll(sessionDir, 0755); err != nil {
 		h.hub.EmitToSession(req.SessionID, "proto://upload_error", gin.H{
 			"error": "failed to create session directory",
@@ -120,7 +151,7 @@ func (h *ProtoHandler) UploadStructure(c *gin.Context) {
 	// webkitRelativePath provides paths like: <rootFolder>/sub/dir/file.proto
 	// We want to strip the first segment so UI sees relative paths identical to desktop scan output.
 	var leadingPrefix string
-	if len(files) > 0 {
+	if len(files) > 0 && !hasProvidedRelativePaths {
 		// Find first .proto file to infer leading segment
 		for _, fh := range files {
 			// Use original filename attribute as provided via FormData append (webkitRelativePath)
@@ -138,19 +169,29 @@ func (h *ProtoHandler) UploadStructure(c *gin.Context) {
 		p = strings.ReplaceAll(p, "\\", "/")
 		// Strip leading ./ if present
 		p = strings.TrimPrefix(p, "./")
+		p = strings.TrimPrefix(p, "/")
 		if leadingPrefix != "" && strings.HasPrefix(p, leadingPrefix+"/") {
 			p = strings.TrimPrefix(p, leadingPrefix+"/")
 		}
-		// Prevent empty path (should not happen; fallback to original filename base)
-		if p == "" {
-			return filepath.Base(p)
+		// Normalize and block parent path traversal.
+		p = filepath.ToSlash(filepath.Clean(p))
+		if p == "." || p == "" {
+			return ""
+		}
+		if strings.HasPrefix(p, "../") || strings.Contains(p, "/../") {
+			return ""
 		}
 		return p
 	}
 
 	// Single-pass: for each proto file create its directory (using relative path) then store the file
-	for _, fileHeader := range files {
+	for idx, fileHeader := range files {
 		originalPath := fileHeader.Filename
+		if hasProvidedRelativePaths {
+			if rel := strings.TrimSpace(providedRelativePaths[idx]); rel != "" {
+				originalPath = rel
+			}
+		}
 		// Diagnostic: log raw filename and whether it contains any directory separators
 		containsSlash := strings.Contains(originalPath, "/")
 		if !containsSlash {
@@ -161,14 +202,29 @@ func (h *ProtoHandler) UploadStructure(c *gin.Context) {
 		relativePath := normalizeRelPath(originalPath)
 		fmt.Printf("originalPath: %s\n", originalPath)
 		fmt.Printf("relativePath: %s\n", relativePath)
-		if !strings.HasSuffix(relativePath, ".proto") { continue }
+		if relativePath == "" {
+			errorFiles = append(errorFiles, originalPath)
+			continue
+		}
+		if !strings.HasSuffix(strings.ToLower(relativePath), ".proto") {
+			continue
+		}
 
 		// Directory metadata collection
 		relDirForMeta := filepath.Dir(relativePath)
 		if relDirForMeta != "." && relDirForMeta != "" {
 			parts := strings.Split(relDirForMeta, "/")
 			cur := ""
-			for i, p := range parts { if i == 0 { cur = p } else { cur = cur + "/" + p }; if _, exists := dirSet[cur]; !exists { dirSet[cur] = struct{}{} } }
+			for i, p := range parts {
+				if i == 0 {
+					cur = p
+				} else {
+					cur = cur + "/" + p
+				}
+				if _, exists := dirSet[cur]; !exists {
+					dirSet[cur] = struct{}{}
+				}
+			}
 		}
 
 		// Ensure directory exists (mkdir based on relative path directory)
@@ -179,7 +235,9 @@ func (h *ProtoHandler) UploadStructure(c *gin.Context) {
 			continue
 		}
 		relDirPrinted := filepath.Dir(relativePath)
-		if relDirPrinted == "." { relDirPrinted = "(root)" }
+		if relDirPrinted == "." {
+			relDirPrinted = "(root)"
+		}
 		fmt.Printf("[UploadStructure] [session=%s] dir ok: %s -> %s (file=%s)\n", req.SessionID, relDirPrinted, absDir, relativePath)
 
 		// Save file content
@@ -195,13 +253,14 @@ func (h *ProtoHandler) UploadStructure(c *gin.Context) {
 			continue
 		}
 		_, err = io.Copy(dst, src)
-		src.Close(); dst.Close()
+		src.Close()
+		dst.Close()
 		if err != nil {
 			errorFiles = append(errorFiles, relativePath)
 			continue
 		}
 
-		protoFile := session.ProtoFile{ Name: filepath.Base(relativePath), RelativePath: relativePath, AbsolutePath: absPath, Size: fileHeader.Size }
+		protoFile := session.ProtoFile{Name: filepath.Base(relativePath), RelativePath: relativePath, AbsolutePath: absPath, Size: fileHeader.Size}
 		fmt.Printf("[UploadStructure] Stored file: %s (size=%d)\n", protoFile.AbsolutePath, protoFile.Size)
 		uploadedFiles = append(uploadedFiles, protoFile)
 		if err := h.sessionManager.AddProtoFile(req.SessionID, protoFile); err != nil {
@@ -214,7 +273,7 @@ func (h *ProtoHandler) UploadStructure(c *gin.Context) {
 		dirs := make([]session.ProtoDir, 0, len(dirSet))
 		for d := range dirSet {
 			absDir := filepath.Join(sessionDir, d)
-			dirs = append(dirs, session.ProtoDir{ RelativePath: d, AbsolutePath: absDir })
+			dirs = append(dirs, session.ProtoDir{RelativePath: d, AbsolutePath: absDir})
 		}
 		if err := h.sessionManager.AddDirectories(req.SessionID, dirs); err != nil {
 			fmt.Printf("[ProtoHandler] Warning: failed to add directories: %v\n", err)
@@ -223,7 +282,9 @@ func (h *ProtoHandler) UploadStructure(c *gin.Context) {
 
 	// Prepare directory list for event
 	dirList := make([]string, 0, len(dirSet))
-	for d := range dirSet { dirList = append(dirList, d) }
+	for d := range dirSet {
+		dirList = append(dirList, d)
+	}
 
 	// Build lightweight file descriptors for event (avoid leaking absolute paths unless needed)
 	eventFiles := make([]gin.H, 0, len(uploadedFiles))
@@ -235,16 +296,15 @@ func (h *ProtoHandler) UploadStructure(c *gin.Context) {
 		})
 	}
 
-	clientStripped := leadingPrefix != "" // heuristic: prefix was detected and removed
 	h.hub.EmitToSession(req.SessionID, "proto://upload_done", gin.H{
-		"session_id":       req.SessionID,
-		"uploaded_count":   len(uploadedFiles),
-		"error_count":      len(errorFiles),
-		"files":            eventFiles,
-		"directories":      dirList,
-		"normalized":       true,
-		"stripped_prefix":  leadingPrefix,
-		"client_stripped":  clientStripped,
+		"session_id":      req.SessionID,
+		"uploaded_count":  len(uploadedFiles),
+		"error_count":     len(errorFiles),
+		"files":           eventFiles,
+		"directories":     dirList,
+		"normalized":      true,
+		"stripped_prefix": leadingPrefix,
+		"client_stripped": clientStripped,
 	})
 
 	response := gin.H{
@@ -252,7 +312,7 @@ func (h *ProtoHandler) UploadStructure(c *gin.Context) {
 		"uploaded_files":  uploadedFiles,
 		"uploaded_count":  len(uploadedFiles),
 		"directories":     dirList,
-		"client_stripped": leadingPrefix != "",
+		"client_stripped": clientStripped,
 	}
 
 	if len(errorFiles) > 0 {

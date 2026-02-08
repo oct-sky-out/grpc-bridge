@@ -10,6 +10,8 @@ import type {
   ProtoRoot,
   RunGRPCParams,
   EventCallback,
+  GRPCResponsePayload,
+  GRPCErrorPayload,
 } from './types';
 import type { ServiceMeta } from '@/state/services';
 
@@ -37,6 +39,35 @@ function headersArrayToMap(headers?: HeaderKV[]): Record<string, string> | undef
   const out: Record<string, string> = {};
   headers.filter(h => h.key.trim() !== '').forEach(h => { out[h.key] = h.value; });
   return out;
+}
+
+function headerStringsToMap(headers?: string[]): Record<string, string> | undefined {
+  if (!headers || headers.length === 0) return undefined;
+  const out: Record<string, string> = {};
+  headers.forEach((header) => {
+    const idx = header.indexOf(':');
+    if (idx <= 0) return;
+    const key = header.slice(0, idx).trim();
+    const value = header.slice(idx + 1).trim();
+    if (!key) return;
+    out[key] = value;
+  });
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function resolvePlaintextByTarget(target?: string): boolean {
+  if (!target) return true;
+  const trimmed = target.trim();
+  if (!trimmed) return true;
+
+  const withoutScheme = trimmed.replace(/^https?:\/\//i, '');
+  const hostPort = withoutScheme.split('/')[0];
+  const parts = hostPort.split(':');
+  const port = parts.length > 1 ? Number(parts[parts.length - 1]) : NaN;
+
+  // gRPC over 443 is almost always TLS/ALPN (h2), not plaintext.
+  if (port === 443) return false;
+  return true;
 }
 
 // ============================================================================
@@ -354,6 +385,7 @@ class WebProtoManager implements ProtoManager {
         effective = candidate.length > 0 ? candidate : rel;
       }
       formData.append('files', file, effective);
+      formData.append('relative_paths', effective);
     });
     formData.append('sessionId', sessionId);
 
@@ -381,9 +413,11 @@ class WebProtoManager implements ProtoManager {
 
 class WebGRPCManager implements GRPCManager {
   private client: HTTPClient;
+  private events: EventManager;
 
-  constructor(client: HTTPClient) {
+  constructor(client: HTTPClient, events: EventManager) {
     this.client = client;
+    this.events = events;
   }
 
   async listServices(rootId?: string, target?: string): Promise<ServiceMeta[]> {
@@ -393,7 +427,7 @@ class WebGRPCManager implements GRPCManager {
         sessionId: this.client.getSessionId(),
         rootId,
         target: target || '', // If empty, server will read from proto files
-        plaintext: true, // Default to plaintext for development
+        plaintext: resolvePlaintextByTarget(target),
       }
     );
 
@@ -402,31 +436,48 @@ class WebGRPCManager implements GRPCManager {
   }
 
   async getMethodSkeleton(fqService: string, method: string): Promise<string> {
-    const response = await this.client.post<{ skeleton: string }>(
-      '/api/grpc/describe',
+    // Web backend does not currently expose a dedicated skeleton endpoint.
+    return JSON.stringify(
       {
-        sessionId: this.client.getSessionId(),
-        service: fqService,
-        method,
-      }
+        '//': `Skeleton for ${fqService}.${method}. Add actual request fields.`,
+        body: {},
+      },
+      null,
+      2
     );
-    return response.skeleton;
   }
 
   async runGRPCCall(params: RunGRPCParams): Promise<void> {
-    // Send request to backend, response will come via WebSocket
-    await this.client.post('/api/grpc/call', {
-      sessionId: this.client.getSessionId(),
-      target: params.target,
-      service: params.service,
-      method: params.method,
-      data: params.payload ? safeJsonParse(params.payload) : {},
-      // params.headers may already be key/value pairs from UI; if it's a string[] fallback skip mapping
-      metadata: Array.isArray(params.headers) && (params.headers as unknown as HeaderKV[])[0]?.key !== undefined
-        ? headersArrayToMap(params.headers as unknown as HeaderKV[])
-        : undefined,
-      plaintext: true,
-    });
+    try {
+      const response = await this.client.post<{
+        ok: boolean;
+        payload: GRPCResponsePayload | GRPCErrorPayload;
+      }>('/api/grpc/call', {
+        sessionId: this.client.getSessionId(),
+        target: params.target,
+        service: params.service,
+        method: params.method,
+        data: params.payload ? safeJsonParse(params.payload) : {},
+        metadata: Array.isArray(params.headers)
+          ? ((params.headers as unknown as HeaderKV[])[0]?.key !== undefined
+              ? headersArrayToMap(params.headers as unknown as HeaderKV[])
+              : headerStringsToMap(params.headers as string[]))
+          : undefined,
+        plaintext: resolvePlaintextByTarget(params.target),
+      });
+
+      if (response.ok) {
+        this.events.emit('grpc://response', response.payload as GRPCResponsePayload);
+      } else {
+        this.events.emit('grpc://error', response.payload as GRPCErrorPayload);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.events.emit('grpc://error', {
+        error: message,
+        kind: 'network_error',
+      } as GRPCErrorPayload);
+    }
   }
 }
 
@@ -443,9 +494,9 @@ export class WebAdapter implements PlatformAdapter {
 
   constructor() {
     this.client = new HTTPClient(API_BASE_URL);
-    this.proto = new WebProtoManager(this.client);
-    this.grpc = new WebGRPCManager(this.client);
     this.events = new WebEventManager();
+    this.proto = new WebProtoManager(this.client);
+    this.grpc = new WebGRPCManager(this.client, this.events);
   }
 
   async initialize(): Promise<void> {

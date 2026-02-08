@@ -2,7 +2,9 @@ package session
 
 import (
 	"fmt"
+	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -43,15 +45,15 @@ type MethodInfo struct {
 
 // Session represents a user session with uploaded proto files
 type Session struct {
-	ID         string        `json:"id"`
-	Name       string        `json:"name"`        // User-specified name for this session
-	CreatedAt  time.Time     `json:"created_at"`
-	ExpiresAt  time.Time     `json:"expires_at"`
-	ProtoFiles []ProtoFile   `json:"proto_files"` // Uploaded proto files with structure
-	Directories []ProtoDir   `json:"directories"` // Uploaded directory hierarchy (excluding root)
-	Services   []ServiceInfo `json:"services"`    // Parsed services (cached)
-	ParsedAt   *time.Time    `json:"parsed_at"`   // Last parse time
-	RootPath   string        `json:"root_path"`   // Root directory path on server
+	ID          string        `json:"id"`
+	Name        string        `json:"name"` // User-specified name for this session
+	CreatedAt   time.Time     `json:"created_at"`
+	ExpiresAt   time.Time     `json:"expires_at"`
+	ProtoFiles  []ProtoFile   `json:"proto_files"` // Uploaded proto files with structure
+	Directories []ProtoDir    `json:"directories"` // Uploaded directory hierarchy (excluding root)
+	Services    []ServiceInfo `json:"services"`    // Parsed services (cached)
+	ParsedAt    *time.Time    `json:"parsed_at"`   // Last parse time
+	RootPath    string        `json:"root_path"`   // Root directory path on server
 }
 
 // Manager manages user sessions
@@ -72,6 +74,7 @@ func NewManager(uploadDir string) *Manager {
 
 	// Start cleanup goroutine
 	go m.cleanupExpired()
+	go m.cleanupUploadsDailyAtMidnight()
 
 	return m
 }
@@ -83,14 +86,14 @@ func (m *Manager) Create(name string) *Session {
 
 	sessionID := uuid.New().String()
 	session := &Session{
-		ID:         sessionID,
-		Name:       name,
-		CreatedAt:  time.Now(),
-		ExpiresAt:  time.Now().Add(m.ttl),
-		ProtoFiles: []ProtoFile{},
+		ID:          sessionID,
+		Name:        name,
+		CreatedAt:   time.Now(),
+		ExpiresAt:   time.Now().Add(m.ttl),
+		ProtoFiles:  []ProtoFile{},
 		Directories: []ProtoDir{},
-		Services:   []ServiceInfo{},
-		RootPath:   "", // Will be set when files are uploaded
+		Services:    []ServiceInfo{},
+		RootPath:    "", // Will be set when files are uploaded
 	}
 
 	m.sessions[session.ID] = session
@@ -108,14 +111,14 @@ func (m *Manager) CreateWithID(id, name string) *Session {
 	}
 
 	session := &Session{
-		ID:         id,
-		Name:       name,
-		CreatedAt:  time.Now(),
-		ExpiresAt:  time.Now().Add(m.ttl),
-		ProtoFiles: []ProtoFile{},
+		ID:          id,
+		Name:        name,
+		CreatedAt:   time.Now(),
+		ExpiresAt:   time.Now().Add(m.ttl),
+		ProtoFiles:  []ProtoFile{},
 		Directories: []ProtoDir{},
-		Services:   []ServiceInfo{},
-		RootPath:   "",
+		Services:    []ServiceInfo{},
+		RootPath:    "",
 	}
 
 	m.sessions[session.ID] = session
@@ -182,16 +185,37 @@ func (m *Manager) AddDirectories(sessionID string, dirs []ProtoDir) error {
 
 	// Build a set of existing dirs for quick lookup
 	existing := make(map[string]struct{}, len(session.Directories))
-	for _, d := range session.Directories { existing[d.RelativePath] = struct{}{} }
+	for _, d := range session.Directories {
+		existing[d.RelativePath] = struct{}{}
+	}
 
 	for _, d := range dirs {
 		if d.RelativePath == "" { // skip root marker
 			continue
 		}
-		if _, ok := existing[d.RelativePath]; ok { continue }
+		if _, ok := existing[d.RelativePath]; ok {
+			continue
+		}
 		session.Directories = append(session.Directories, d)
 		existing[d.RelativePath] = struct{}{}
 	}
+	return nil
+}
+
+// ResetUploadState clears upload-derived session state so the next upload fully replaces previous files.
+func (m *Manager) ResetUploadState(sessionID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	session, exists := m.sessions[sessionID]
+	if !exists {
+		return ErrSessionNotFound
+	}
+
+	session.ProtoFiles = []ProtoFile{}
+	session.Directories = []ProtoDir{}
+	session.Services = []ServiceInfo{}
+	session.ParsedAt = nil
 	return nil
 }
 
@@ -254,6 +278,57 @@ func (m *Manager) cleanupExpiredSessions() {
 			delete(m.sessions, id)
 		}
 	}
+}
+
+// cleanupUploadsDailyAtMidnight removes all entries under uploads/* every day at 00:00 (server local time).
+func (m *Manager) cleanupUploadsDailyAtMidnight() {
+	for {
+		now := time.Now()
+		nextMidnight := time.Date(
+			now.Year(),
+			now.Month(),
+			now.Day()+1,
+			0, 0, 0, 0,
+			now.Location(),
+		)
+
+		time.Sleep(time.Until(nextMidnight))
+		m.clearAllUploadEntries()
+	}
+}
+
+// clearAllUploadEntries is equivalent to: rm -rdf <uploadDir>/*
+// It also clears in-memory sessions to avoid dangling references to deleted files.
+func (m *Manager) clearAllUploadEntries() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	entries, err := os.ReadDir(m.uploadDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Recreate upload root if missing.
+			if mkErr := os.MkdirAll(m.uploadDir, 0755); mkErr != nil {
+				log.Printf("[SessionManager] Failed to recreate upload directory %s: %v", m.uploadDir, mkErr)
+			}
+			return
+		}
+		log.Printf("[SessionManager] Failed to read upload directory %s: %v", m.uploadDir, err)
+		return
+	}
+
+	removed := 0
+	for _, entry := range entries {
+		target := filepath.Join(m.uploadDir, entry.Name())
+		if err := os.RemoveAll(target); err != nil {
+			log.Printf("[SessionManager] Failed to remove %s: %v", target, err)
+			continue
+		}
+		removed++
+	}
+
+	prevSessions := len(m.sessions)
+	m.sessions = make(map[string]*Session)
+	log.Printf("[SessionManager] Midnight cleanup completed: removed %d upload entries, cleared %d sessions", removed, prevSessions)
 }
 
 // Errors

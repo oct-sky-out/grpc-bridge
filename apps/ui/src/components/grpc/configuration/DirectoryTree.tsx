@@ -1,8 +1,9 @@
 "use client"
 
 import type React from "react"
-import { useMemo, useCallback } from "react"
+import { useMemo, useCallback, useState } from "react"
 import { Checkbox } from '@/components/ui/Checkbox';
+import { Input } from '@/components/ui/Input';
 import { useProtoFiles } from '@/state/protoFiles';
 
 export interface FileSystemItem {
@@ -241,6 +242,35 @@ function mapNodeToFileSystemItem(node: NodeInternal): FileSystemItem {
   };
 }
 
+function filterTreeItems(items: FileSystemItem[], query: string): FileSystemItem[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return items;
+
+  const walk = (item: FileSystemItem): FileSystemItem | null => {
+    const selfMatch = item.name.toLowerCase().includes(q);
+    if (item.type === 'file') {
+      return selfMatch ? item : null;
+    }
+
+    const children = (item.children || [])
+      .map(walk)
+      .filter((v): v is FileSystemItem => v !== null);
+
+    if (selfMatch) {
+      // If a directory itself matches, keep full subtree to make navigation easier.
+      return item;
+    }
+    if (children.length > 0) {
+      return { ...item, children };
+    }
+    return null;
+  };
+
+  return items
+    .map(walk)
+    .filter((v): v is FileSystemItem => v !== null);
+}
+
 export const DirectoryTree: React.FC<DirectoryTreeProps> = ({ height = 160, className = "" }) => {
   const files = useProtoFiles(s => s.files);
   const selected = useProtoFiles(s => s.selected);
@@ -248,6 +278,7 @@ export const DirectoryTree: React.FC<DirectoryTreeProps> = ({ height = 160, clas
   const toggle = useProtoFiles(s => s.toggle);
   const toggleFolder = useProtoFiles(s => s.toggleFolder);
   const selectFolder = useProtoFiles(s => s.selectFolder);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const tree = useMemo(() => buildTree(files), [files]);
 
@@ -261,27 +292,42 @@ export const DirectoryTree: React.FC<DirectoryTreeProps> = ({ height = 160, clas
       .map(mapNodeToFileSystemItem);
   }, [tree]);
 
+  const filteredData = useMemo(
+    () => filterTreeItems(data, searchQuery),
+    [data, searchQuery]
+  );
+
   return (
-    <div
-      className={`border border-border rounded p-1 overflow-auto bg-card ${className}`}
-      style={{ maxHeight: height }}
-    >
-      {files.length === 0 && (
-        <em className="opacity-70 text-[11px]">No proto files (scan root)</em>
-      )}
-      <div className="proto-tree text-card-foreground">
-        {data.map((item, index) => (
-          <TreeItem
-            key={`${item.path || item.name}-${index}`}
-            item={item}
-            level={0}
-            selected={selected}
-            toggle={toggle}
-            toggleFolder={toggleFolder}
-            selectFolder={selectFolder}
-            expanded={expanded}
-          />
-        ))}
+    <div className={`space-y-2 ${className}`}>
+      <Input
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        placeholder="Search files or directories"
+      />
+      <div
+        className="border border-border rounded p-1 overflow-auto bg-card"
+        style={{ maxHeight: height }}
+      >
+        {files.length === 0 && (
+          <em className="opacity-70 text-[11px]">No proto files (scan root)</em>
+        )}
+        {files.length > 0 && filteredData.length === 0 && (
+          <em className="opacity-70 text-[11px]">No matches</em>
+        )}
+        <div className="proto-tree text-card-foreground">
+          {filteredData.map((item, index) => (
+            <TreeItem
+              key={`${item.path || item.name}-${index}`}
+              item={item}
+              level={0}
+              selected={selected}
+              toggle={toggle}
+              toggleFolder={toggleFolder}
+              selectFolder={selectFolder}
+              expanded={expanded}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )

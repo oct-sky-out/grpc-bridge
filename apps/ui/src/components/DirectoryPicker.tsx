@@ -118,6 +118,7 @@ export function DirectoryPicker({
               const rawRel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
               const effective = rootSegment && rawRel.startsWith(rootSegment + '/') ? rawRel.substring(rootSegment.length + 1) : rawRel;
               formData.append('files', f, effective);
+              formData.append('relative_paths', effective);
             });
             formData.append('sessionId', sessionId);
             formData.append('clientStripped', 'true');
@@ -180,6 +181,7 @@ export function DirectoryPicker({
         const rawRel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
         const effective = rootSegment && rawRel.startsWith(rootSegment + '/') ? rawRel.substring(rootSegment.length + 1) : rawRel;
         formData.append('files', f, effective);
+        formData.append('relative_paths', effective);
       });
       formData.append('sessionId', sessionId);
       formData.append('clientStripped', 'true');

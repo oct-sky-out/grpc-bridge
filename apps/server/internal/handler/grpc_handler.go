@@ -2,10 +2,10 @@ package handler
 
 import (
 	"context"
-	"net/http"
-	"time"
-	"strings"
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/grpc-bridge/server/internal/grpc"
@@ -16,8 +16,8 @@ import (
 
 type GRPCHandler struct {
 	sessionManager *session.Manager
-	grpcProxy      *grpc.Proxy         // Legacy grpcurl wrapper (deprecated)
-	nativeClient   *grpc.NativeClient  // New native gRPC client
+	grpcProxy      *grpc.Proxy        // Legacy grpcurl wrapper (deprecated)
+	nativeClient   *grpc.NativeClient // New native gRPC client
 	wsHub          *websocket.Hub
 }
 
@@ -32,13 +32,18 @@ func NewGRPCHandler(sm *session.Manager, gp *grpc.Proxy, hub *websocket.Hub) *GR
 
 // CallRequest represents a gRPC call request
 type CallRequest struct {
-	Target      string            `json:"target" binding:"required"`       // gRPC server address
-	Service     string            `json:"service" binding:"required"`      // Full service name (e.g. "grpc.reflection.v1alpha.ServerReflection")
-	Method      string            `json:"method" binding:"required"`       // Method name
-	Data        interface{}       `json:"data"`                            // Request payload (JSON)
-	Metadata    map[string]string `json:"metadata"`                        // gRPC metadata headers
-	Plaintext   bool              `json:"plaintext"`                       // Use plaintext (insecure) connection
-	ImportPaths []string          `json:"import_paths"`                    // Additional proto import paths
+	Target      string            `json:"target" binding:"required"`  // gRPC server address
+	Service     string            `json:"service" binding:"required"` // Full service name (e.g. "grpc.reflection.v1alpha.ServerReflection")
+	Method      string            `json:"method" binding:"required"`  // Method name
+	Data        interface{}       `json:"data"`                       // Request payload (JSON)
+	Metadata    map[string]string `json:"metadata"`                   // gRPC metadata headers
+	Plaintext   bool              `json:"plaintext"`                  // Use plaintext (insecure) connection
+	ImportPaths []string          `json:"import_paths"`               // Additional proto import paths
+}
+
+type CallGRPCResponse struct {
+	Ok      bool  `json:"ok"`
+	Payload gin.H `json:"payload"`
 }
 
 // CallGRPC handles gRPC call requests
@@ -77,45 +82,42 @@ func (h *GRPCHandler) CallGRPC(c *gin.Context) {
 		protoFiles[i] = pf.AbsolutePath
 	}
 
-	// Execute gRPC call using native Go gRPC client in a goroutine
-	go func() {
-		result, err := h.nativeClient.Call(c.Request.Context(), grpc.NativeCallOptions{
-			SessionID:   sessionID,
-			SessionRoot: session.RootPath,
-			ProtoFiles:  protoFiles,
-			Target:      req.Target,
-			Service:     req.Service,
-			Method:      req.Method,
-			Data:        req.Data,
-			Metadata:    req.Metadata,
-			Plaintext:   req.Plaintext,
-			Timeout:     30 * time.Second, // Default 30s timeout
-		})
+	// Execute synchronously and return the final result in HTTP response.
+	result, err := h.nativeClient.Call(c.Request.Context(), grpc.NativeCallOptions{
+		SessionID:   sessionID,
+		SessionRoot: session.RootPath,
+		ProtoFiles:  protoFiles,
+		Target:      req.Target,
+		Service:     req.Service,
+		Method:      req.Method,
+		Data:        req.Data,
+		Metadata:    req.Metadata,
+		Plaintext:   req.Plaintext,
+		Timeout:     30 * time.Second, // Default 30s timeout
+	})
 
-		tookMs := time.Since(startTime).Milliseconds()
-
-		if err != nil {
-			// Emit error event via WebSocket
-			h.wsHub.EmitToSession(sessionID, "grpc://error", gin.H{
+	tookMs := time.Since(startTime).Milliseconds()
+	if err != nil {
+		c.JSON(http.StatusOK, CallGRPCResponse{
+			Ok: false,
+			Payload: gin.H{
 				"error":   err.Error(),
 				"took_ms": tookMs,
-				"kind":    "error",
-			})
-		} else {
-			// Emit success event via WebSocket
-			h.wsHub.EmitToSession(sessionID, "grpc://response", gin.H{
-				"raw":     result.Response,
-				"parsed":  result.Response,
-				"headers": result.Headers,
-				"trailers": result.Trailers,
-				"took_ms": tookMs,
-			})
-		}
-	}()
+				"kind":    classifyGRPCErrorKind(err.Error()),
+			},
+		})
+		return
+	}
 
-	// Immediately return accepted status
-	c.JSON(http.StatusAccepted, gin.H{
-		"message": "gRPC call initiated",
+	c.JSON(http.StatusOK, CallGRPCResponse{
+		Ok: true,
+		Payload: gin.H{
+			"raw":      result.Response,
+			"parsed":   result.Response,
+			"headers":  result.Headers,
+			"trailers": result.Trailers,
+			"took_ms":  tookMs,
+		},
 	})
 }
 
@@ -157,7 +159,9 @@ func (h *GRPCHandler) ListServices(c *gin.Context) {
 	// Helper: parse proto files to build rich service metadata (fq_service, file, methods)
 	parseFromProto := func() {
 		protoFiles := make([]string, len(session.ProtoFiles))
-		for i, pf := range session.ProtoFiles { protoFiles[i] = pf.AbsolutePath }
+		for i, pf := range session.ProtoFiles {
+			protoFiles[i] = pf.AbsolutePath
+		}
 		if len(protoFiles) == 0 {
 			c.JSON(http.StatusOK, gin.H{"services": []interface{}{}, "source": "proto_files"})
 			return
@@ -191,7 +195,10 @@ func (h *GRPCHandler) ListServices(c *gin.Context) {
 	}
 
 	// If no target OR target appears to be placeholder localhost with no server reachable -> parse locally
-	if req.Target == "" { parseFromProto(); return }
+	if req.Target == "" {
+		parseFromProto()
+		return
+	}
 
 	// Attempt reflection with short timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 1200*time.Millisecond)
@@ -279,4 +286,26 @@ func (h *GRPCHandler) DescribeService(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, description)
+}
+
+func classifyGRPCErrorKind(msg string) string {
+	lowered := strings.ToLower(msg)
+	switch {
+	case strings.Contains(lowered, "unknown service"):
+		return "unknown_service"
+	case strings.Contains(lowered, "unknown method"):
+		return "unknown_method"
+	case strings.Contains(lowered, "failed to dial"), strings.Contains(lowered, "connection refused"), strings.Contains(lowered, "dial tcp"):
+		return "dial_failure"
+	case strings.Contains(lowered, "deadline exceeded"), strings.Contains(lowered, "context deadline exceeded"):
+		return "timeout"
+	case strings.Contains(lowered, "permission denied"):
+		return "permission_denied"
+	case strings.Contains(lowered, "unauthenticated"):
+		return "unauthenticated"
+	case strings.Contains(lowered, "unavailable"):
+		return "unavailable"
+	default:
+		return "error"
+	}
 }

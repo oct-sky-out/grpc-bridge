@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/Select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { invoke } from '@tauri-apps/api/core';
+import { platform } from '@/lib/platform';
 import { useRequestStore } from '@/state/request';
 import { useServicesStore } from '@/state/services';
 import { useProtoFiles } from '@/state/protoFiles';
@@ -73,10 +73,7 @@ export const RequestPanel: React.FC = () => {
   const fillSkeleton = async () => {
     if (!service || !method) return;
     try {
-      const skel = await invoke<string>('get_method_skeleton', {
-        fq_service: service,
-        method,
-      });
+      const skel = await platform.grpc.getMethodSkeleton(service, method);
       setPayload(skel);
     } catch (e: any) {
       toast.error(t('errors.skeletonFailed'));

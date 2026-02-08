@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { invoke } from '@tauri-apps/api/core';
+import { platform } from '@/lib/platform';
 import { useRequestStore } from '@/state/request';
 import { useHistoryStore } from '@/state/history';
 import { useProtoFiles } from '@/state/protoFiles';
@@ -69,16 +69,14 @@ export const ExecuteRequestPanel: React.FC = () => {
         headers: effectiveHeaders.map(h => ({ key: h.key, value: h.value })),
       });
       setLastSentPayload(payload);
-      await invoke('run_grpc_call', {
-        params: {
-          target,
-          service,
-          method,
-          payload,
-          proto_files: chosenFiles,
-          root_id: rootId ?? null,
-          headers: headerList,
-        },
+      await platform.grpc.runGRPCCall({
+        target,
+        service,
+        method,
+        payload,
+        proto_files: chosenFiles,
+        root_id: rootId ?? undefined,
+        headers: headerList,
       });
     } catch (e: any) {
       toast.error(e.toString());
