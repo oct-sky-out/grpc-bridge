@@ -61,6 +61,12 @@ pnpm nx run ui:build
 echo "🎯 Available Rust targets:"
 rustup target list --installed
 
+# Ensure required Rust targets are installed before building.
+echo "📥 Installing required Rust targets (stable toolchain)..."
+rustup target add aarch64-apple-darwin --toolchain stable 2>/dev/null || true
+rustup target add x86_64-apple-darwin --toolchain stable 2>/dev/null || true
+rustup target add x86_64-pc-windows-gnu --toolchain stable 2>/dev/null || true
+
 echo ""
 echo "🔨 Building for multiple platforms..."
 
@@ -71,7 +77,6 @@ echo "   ✅ macOS build complete: ./apps/desktop/src-tauri/target/aarch64-apple
 
 # Build for macOS Intel
 echo "🍎 Building for macOS Intel (x86_64-apple-darwin)..."
-rustup target add x86_64-apple-darwin 2>/dev/null || true
 rustup run stable cargo build --release --manifest-path apps/desktop/src-tauri/Cargo.toml --target x86_64-apple-darwin
 echo "   ✅ macOS Intel build complete: ./apps/desktop/src-tauri/target/x86_64-apple-darwin/release/grpc-bridge"
 
