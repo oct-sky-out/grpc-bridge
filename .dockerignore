@@ -1,0 +1,11 @@
+.git
+.github
+node_modules
+dist
+.nx
+apps/desktop/src-tauri/target
+apps/server/uploads
+uploads
+npm-debug.log*
+pnpm-debug.log*
+*.local
