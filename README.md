@@ -16,6 +16,58 @@ Built with **Nx monorepo** for scalable development and optimized builds.
 - 🔧 **Developer Friendly**: JSON syntax highlighting and validation
 - 🌐 **Web Version**: Browser-based gRPC testing with Go backend API
 
+## ✨ Features Details
+
+### 1. Frontend (Web, Desktop) - `apps/ui`
+
+- Dual UI build targets are implemented: `build:desktop` and `build:web`.
+- A platform abstraction layer switches behavior between Tauri desktop and Web API mode.
+- Proto file workflows are implemented for both platforms:
+  - Desktop: register proto root, scan/rescan, list/remove known roots.
+  - Web: directory upload (`webkitdirectory`) with preserved folder structure and session-based analysis.
+- Proto tree visualization is implemented with file/folder selection, select-all/select-none, and folder-level bulk selection.
+- Request builder is implemented with target/service/method selection, JSON payload validation/formatting, and payload diff against last request.
+- Metadata/header editing is implemented, including optional automatic `Authorization: Bearer <token>` injection.
+- Unary request execution and response handling are implemented with success/error events and elapsed time tracking.
+- Response viewer supports pretty JSON output and copy-to-clipboard.
+- Request history is implemented with load/delete/clear actions and local persistence (`localStorage`).
+- i18n (English, Japanese, Korean) and theme toggle (light/dark with persistence) are implemented.
+
+### 2. Backend (Relay API) - `apps/server`
+
+- HTTP API server is implemented with Gin, including health, session, proto, grpc, and websocket endpoints.
+- Session lifecycle is implemented (create/get/delete), with optional client-provided session IDs and TTL-based cleanup.
+- Proto upload pipeline is implemented for multi-file directory structure uploads per session.
+- Embedded protobuf standard library files are copied into each session workspace for import resolution.
+- Proto analysis is implemented:
+  - import scanning,
+  - missing import detection,
+  - missing standard library detection,
+  - dependency graph generation.
+- gRPC execution relay is implemented with a native Go dynamic gRPC client:
+  - JSON request decoding into dynamic messages,
+  - metadata forwarding,
+  - response/header/trailer capture.
+- Service discovery is implemented with reflection-first strategy and fallback to local proto parsing.
+- WebSocket hub is implemented to push `proto://*` and `grpc://*` events to the matching session client.
+- CORS middleware and HTTP request logging middleware are implemented.
+- Embedded static frontend serving is implemented for web distribution.
+
+### 3. Desktop Layer (Native Bridge) - `apps/desktop`
+
+- Tauri native command bridge is implemented for:
+  - proto root registration/list/removal,
+  - proto scanning and file listing,
+  - service listing and method skeleton generation,
+  - grpc execution.
+- Desktop state management is implemented in Rust for roots, parsed services, and files by root.
+- Local proto scanning is implemented using filesystem walking with `.proto` filtering.
+- Lightweight proto parsing is implemented in Rust to extract package/service/rpc metadata and streaming flags.
+- Native event emission to the frontend is implemented (`proto://index_start`, `proto://index_done`, `grpc://response`, `grpc://error`).
+- gRPC execution through `grpcurl` subprocess is implemented with target sanitization and error-kind classification.
+- Single active unary request guard is implemented to prevent concurrent call overlap.
+- Tauri capabilities are configured to allow frontend event listening.
+
 ## 📦 Installation
 
 ### Prerequisites

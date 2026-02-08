@@ -1,0 +1,5 @@
+interface:
+  display_name: "Code Architect"
+  short_description: "Design implementation-ready feature architecture blueprints"
+  brand_color: "#16A34A"
+  default_prompt: "Use $code-architect to design a complete implementation blueprint for this feature in my codebase."
