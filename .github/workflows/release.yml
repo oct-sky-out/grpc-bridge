@@ -129,11 +129,6 @@ jobs:
         with:
           targets: ${{ matrix.rust_target }}
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: apps/server/go.mod
-
       - name: Build desktop bundle via cross-build
         env:
           BUILD_TARGET: ${{ matrix.build_target }}
