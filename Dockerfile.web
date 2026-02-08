@@ -1,4 +1,4 @@
-FROM node:20-alpine AS ui-builder
+FROM --platform=$BUILDPLATFORM node:20-alpine AS ui-builder
 WORKDIR /workspace
 
 RUN corepack enable
@@ -9,7 +9,7 @@ COPY apps/ui ./apps/ui
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @grpc-bridge/ui build:web
 
-FROM golang:1.24 AS go-builder
+FROM --platform=$BUILDPLATFORM golang:1.24 AS go-builder
 WORKDIR /src
 ARG INSECURE_SSL=false
 ENV GOPROXY=direct
@@ -28,7 +28,9 @@ COPY apps/server ./apps/server
 COPY --from=ui-builder /workspace/dist/web/. ./apps/server/internal/static/dist/
 
 WORKDIR /src/apps/server
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/grpc-bridge-server ./main.go
+ARG TARGETOS
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} go build -o /out/grpc-bridge-server ./main.go
 
 FROM debian:bookworm-slim
 WORKDIR /app
