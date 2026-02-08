@@ -113,7 +113,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Intel macOS DMG
-        run: pnpm --filter @grpc-bridge/desktop build -- --target x86_64-apple-darwin --bundles dmg
+        run: pnpm --filter @grpc-bridge/desktop exec tauri build --target x86_64-apple-darwin --bundles dmg
 
       - name: Upload Intel DMG
         uses: actions/upload-artifact@v4
@@ -152,7 +152,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Apple Silicon DMG
-        run: pnpm --filter @grpc-bridge/desktop build -- --target aarch64-apple-darwin --bundles dmg
+        run: pnpm --filter @grpc-bridge/desktop exec tauri build --target aarch64-apple-darwin --bundles dmg
 
       - name: Upload Apple Silicon DMG
         uses: actions/upload-artifact@v4
@@ -191,7 +191,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Windows EXE
-        run: pnpm --filter @grpc-bridge/desktop build -- --target x86_64-pc-windows-msvc --bundles nsis
+        run: pnpm --filter @grpc-bridge/desktop exec tauri build --target x86_64-pc-windows-msvc --bundles nsis
 
       - name: Upload Windows EXE
         uses: actions/upload-artifact@v4

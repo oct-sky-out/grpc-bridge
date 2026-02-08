@@ -64,14 +64,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build macOS DMG
-        run: pnpm --filter @grpc-bridge/desktop build -- --bundles dmg
-
-      - name: Upload DMG artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-macos-dmg
-          path: apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
-          if-no-files-found: error
+        run: pnpm --filter @grpc-bridge/desktop exec tauri build --bundles dmg
 
   desktop-windows:
     name: Desktop Build (Windows EXE)
@@ -97,14 +90,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Windows EXE
-        run: pnpm --filter @grpc-bridge/desktop build -- --bundles nsis
-
-      - name: Upload EXE artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-windows-exe
-          path: apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
-          if-no-files-found: error
+        run: pnpm --filter @grpc-bridge/desktop exec tauri build --bundles nsis
 
   web-image:
     name: Web Image Build Only (Server + UI)
@@ -113,7 +99,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -127,9 +112,3 @@ jobs:
           context: .
           file: ./Dockerfile.web
           push: false
-
-      - name: Upload docker-compose
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-compose
-          path: docker-compose.yml
