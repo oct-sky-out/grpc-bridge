@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'apps/server/**'
+      - 'apps/ui/**'
+      - 'apps/desktop/**'
+      - '.github/workflows/ci.yml'
+      - 'Dockerfile.web'
+      - '.dockerignore'
+      - 'docker-compose.yml'
+
+concurrency:
+  group: ci-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    name: Detect Changed Apps
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      ui: ${{ steps.filter.outputs.ui }}
+      desktop: ${{ steps.filter.outputs.desktop }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'apps/server/**'
+            ui:
+              - 'apps/ui/**'
+            desktop:
+              - 'apps/desktop/**'
+
+  desktop-build:
+    name: Desktop Build (${{ matrix.name }})
+    needs: detect-changes
+    if: needs.detect-changes.outputs.desktop == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS DMG
+            os: macos-latest
+            build_phase: mac
+          - name: Windows EXE
+            os: windows-latest
+            build_phase: windows
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build desktop bundle via cross-build
+        env:
+          BUILD_PHASE: ${{ matrix.build_phase }}
+          INSTALL_DEPS: true
+        run: bash ./scripts/cross-build.sh
+
+  web-image:
+    name: Web Image Build Only (Server + UI)
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ui == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.web
+          push: false

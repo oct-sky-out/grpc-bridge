@@ -1,0 +1,13 @@
+{
+  "name": "@grpc-bridge/desktop",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "^2.0.0-rc",
+    "@tauri-apps/cli": "^2.0.0-rc"
+  }
+}

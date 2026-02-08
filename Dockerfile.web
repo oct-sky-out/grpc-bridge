@@ -1,0 +1,44 @@
+FROM node:20-alpine AS ui-builder
+WORKDIR /workspace
+
+RUN corepack enable
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml nx.json ./
+COPY apps/ui ./apps/ui
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @grpc-bridge/ui build:web
+
+FROM golang:1.24 AS go-builder
+WORKDIR /src
+ARG INSECURE_SSL=false
+ENV GOPROXY=direct
+ENV GOSUMDB=off
+
+COPY apps/server/go.mod apps/server/go.sum ./apps/server/
+WORKDIR /src/apps/server
+RUN if [ "$INSECURE_SSL" = "true" ]; then \
+      git config --global http.sslVerify false; \
+      export GIT_SSL_NO_VERIFY=1; \
+      export GOINSECURE='*'; \
+    fi && go mod download
+
+WORKDIR /src
+COPY apps/server ./apps/server
+COPY --from=ui-builder /workspace/dist/web/. ./apps/server/internal/static/dist/
+
+WORKDIR /src/apps/server
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/grpc-bridge-server ./main.go
+
+FROM debian:bookworm-slim
+WORKDIR /app
+COPY --from=go-builder /out/grpc-bridge-server /app/grpc-bridge-server
+COPY --from=go-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+
+ENV PORT=8800
+ENV UPLOAD_DIR=/data/uploads
+
+VOLUME ["/data/uploads"]
+EXPOSE 8800
+
+ENTRYPOINT ["/app/grpc-bridge-server"]

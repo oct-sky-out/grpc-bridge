@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "grpc-bridge",
+  "version": "0.0.1",
+  "identifier": "com.example.grpcbridge",
+  "build": {
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "pnpm --filter @grpc-bridge/ui dev:desktop",
+    "beforeBuildCommand": "pnpm --filter @grpc-bridge/ui build:desktop",
+    "frontendDist": "../../../dist/desktop"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "gRPC Bridge",
+        "width": 1200,
+        "height": 800
+      }
+    ]
+  },
+  "bundle": {
+    "icon": [
+      "./icons/icon.png"
+    ]
+  }
+}

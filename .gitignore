@@ -171,3 +171,29 @@ Cargo.lock
 *.pdb
 
 # End of https://www.toptal.com/developers/gitignore/api/node,react,rust
+
+# Nx Monorepo
+.nx/cache
+.nx/workspace-data
+
+# Monorepo build outputs
+dist/
+dist-artifacts/
+apps/*/dist/
+libs/*/dist/
+
+# Desktop app bundles
+dist/desktop/app/
+
+# Workspace-specific node_modules
+apps/*/node_modules/
+libs/*/node_modules/
+
+# Tauri build artifacts
+apps/desktop/src-tauri/target/
+
+# Go server static files (embedded frontend)
+apps/server/internal/static/dist/
+
+# Go uploads directory
+apps/server/uploads/
