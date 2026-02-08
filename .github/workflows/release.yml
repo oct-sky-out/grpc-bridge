@@ -83,10 +83,35 @@ jobs:
             ${{ needs.prepare.outputs.image_ref }}
             ${{ needs.prepare.outputs.image }}:latest
 
-  desktop-macos-intel:
-    name: Build Desktop (Intel macOS DMG)
-    runs-on: macos-13
+  desktop-build:
+    name: Build Desktop (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
     needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Intel macOS DMG
+            os: macos-13
+            rust_target: x86_64-apple-darwin
+            build_target: x86_64-apple-darwin
+            bundle_type: dmg
+            artifact_name: desktop-macos-intel-dmg
+            artifact_glob: dist-artifacts/*.dmg
+          - name: Apple Silicon macOS DMG
+            os: macos-14
+            rust_target: aarch64-apple-darwin
+            build_target: aarch64-apple-darwin
+            bundle_type: dmg
+            artifact_name: desktop-macos-apple-dmg
+            artifact_glob: dist-artifacts/*.dmg
+          - name: Windows EXE
+            os: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            build_target: x86_64-pc-windows-msvc
+            bundle_type: nsis
+            artifact_name: desktop-windows-exe
+            artifact_glob: dist-artifacts/*.exe
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -102,102 +127,26 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-apple-darwin
+          targets: ${{ matrix.rust_target }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version-file: apps/server/go.mod
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Build desktop bundle via cross-build
+        env:
+          BUILD_TARGET: ${{ matrix.build_target }}
+          BUNDLE_TYPE: ${{ matrix.bundle_type }}
+          INSTALL_DEPS: true
+          OUTPUT_DIR: dist-artifacts
+        run: bash ./scripts/cross-build.sh
 
-      - name: Build Intel macOS DMG
-        run: pnpm --filter @grpc-bridge/desktop exec tauri build --target x86_64-apple-darwin --bundles dmg
-
-      - name: Upload Intel DMG
+      - name: Upload desktop artifact
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-macos-intel-dmg
-          path: apps/desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
-          if-no-files-found: error
-
-  desktop-macos-apple:
-    name: Build Desktop (Apple Silicon DMG)
-    runs-on: macos-14
-    needs: prepare
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: apps/server/go.mod
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Apple Silicon DMG
-        run: pnpm --filter @grpc-bridge/desktop exec tauri build --target aarch64-apple-darwin --bundles dmg
-
-      - name: Upload Apple Silicon DMG
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-macos-apple-dmg
-          path: apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
-          if-no-files-found: error
-
-  desktop-windows:
-    name: Build Desktop (Windows EXE)
-    runs-on: windows-latest
-    needs: prepare
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: apps/server/go.mod
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Windows EXE
-        run: pnpm --filter @grpc-bridge/desktop exec tauri build --target x86_64-pc-windows-msvc --bundles nsis
-
-      - name: Upload Windows EXE
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-windows-exe
-          path: apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_glob }}
           if-no-files-found: error
 
   create-tag:
@@ -206,9 +155,7 @@ jobs:
     needs:
       - prepare
       - web-image
-      - desktop-macos-intel
-      - desktop-macos-apple
-      - desktop-windows
+      - desktop-build
     steps:
       - name: Checkout
         uses: actions/checkout@v4

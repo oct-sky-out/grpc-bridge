@@ -40,11 +40,23 @@ jobs:
             desktop:
               - 'apps/desktop/**'
 
-  desktop-macos:
-    name: Desktop Build (macOS DMG)
+  desktop-build:
+    name: Desktop Build (${{ matrix.name }})
     needs: detect-changes
     if: needs.detect-changes.outputs.desktop == 'true'
-    runs-on: macos-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS DMG
+            os: macos-latest
+            build_target: aarch64-apple-darwin
+            bundle_type: dmg
+          - name: Windows EXE
+            os: windows-latest
+            build_target: x86_64-pc-windows-msvc
+            bundle_type: nsis
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -60,37 +72,12 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build macOS DMG
-        run: pnpm --filter @grpc-bridge/desktop exec tauri build --bundles dmg
-
-  desktop-windows:
-    name: Desktop Build (Windows EXE)
-    needs: detect-changes
-    if: needs.detect-changes.outputs.desktop == 'true'
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Windows EXE
-        run: pnpm --filter @grpc-bridge/desktop exec tauri build --bundles nsis
+      - name: Build desktop bundle via cross-build
+        env:
+          BUILD_TARGET: ${{ matrix.build_target }}
+          BUNDLE_TYPE: ${{ matrix.bundle_type }}
+          INSTALL_DEPS: true
+        run: bash ./scripts/cross-build.sh
 
   web-image:
     name: Web Image Build Only (Server + UI)
